@@ -1,6 +1,10 @@
 # MDword
 
 <p align="center">
+  <img src="docs/brand/mdword-icon.png" width="140" height="140" alt="MDword Logo">
+</p>
+
+<p align="center">
   <b>純Rust + WebAssembly 製の高速・安全な次世代AI連携・日本語Webワープロ</b>
 </p>
 
