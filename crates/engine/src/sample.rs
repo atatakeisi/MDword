@@ -6,6 +6,17 @@ use wordcraft_doc::{Block, Document, ListKind, Paragraph, PartKind, Table, para_
 
 pub(crate) const JAPANESE_DEFAULT_FONT: &str = "Hachi Maru Pop";
 
+pub fn apply_japanese_fonts(d: &mut Document) {
+    d.settings.major_font = JAPANESE_DEFAULT_FONT.into();
+    d.settings.minor_font = JAPANESE_DEFAULT_FONT.into();
+    d.styles.default_chr.font = Some(JAPANESE_DEFAULT_FONT.into());
+    for st in &mut d.styles.styles {
+        if st.chr.font.is_some() || st.id.starts_with("Heading") || st.id == "Title" || st.id == "Subtitle" {
+            st.chr.font = Some(JAPANESE_DEFAULT_FONT.into());
+        }
+    }
+}
+
 fn para(text: &str) -> Paragraph {
     Paragraph::with_text(text, CharProps::default())
 }
@@ -142,7 +153,7 @@ pub fn sample_document() -> Document {
 /// A Japanese sample with the same kinds of document elements as the English showcase.
 pub fn sample_document_ja() -> Document {
     let mut d = Document::new();
-    d.styles.default_chr.font = Some(JAPANESE_DEFAULT_FONT.into());
+    apply_japanese_fonts(&mut d);
     d.core.title = "日本語ワープロ 活用ガイド".into();
     d.core.creator = "WordCraft".into();
     let mut b = vec![
@@ -282,7 +293,7 @@ pub fn report() -> Document {
 /// A Japanese letter or cover note, ready to adapt for the recipient.
 pub fn letter_ja() -> Document {
     let mut d = Document::new();
-    d.styles.default_chr.font = Some(JAPANESE_DEFAULT_FONT.into());
+    apply_japanese_fonts(&mut d);
     let lines = [
         styled("ご案内・添え状", "Title"),
         para("令和　年　月　日"),
@@ -307,7 +318,7 @@ pub fn letter_ja() -> Document {
 /// A Japanese work-history and profile template.
 pub fn resume_ja() -> Document {
     let mut d = Document::new();
-    d.styles.default_chr.font = Some(JAPANESE_DEFAULT_FONT.into());
+    apply_japanese_fonts(&mut d);
     let lines = [
         styled("職務経歴書", "Title"),
         para("氏名：ご記入ください　　作成日：令和　年　月　日"),
@@ -328,7 +339,7 @@ pub fn resume_ja() -> Document {
 /// A Japanese business report with the main sections in place.
 pub fn report_ja() -> Document {
     let mut d = Document::new();
-    d.styles.default_chr.font = Some(JAPANESE_DEFAULT_FONT.into());
+    apply_japanese_fonts(&mut d);
     let lines = [
         styled("業務報告書", "Title"),
         para("報告日：令和　年　月　日　　報告者：ご記入ください"),
@@ -370,7 +381,11 @@ mod tests {
 
     #[test]
     fn japanese_sample_uses_rounded_default_font() {
-        assert_eq!(sample_document_ja().styles.default_chr.font.as_deref(), Some("Hachi Maru Pop"));
+        let doc = sample_document_ja();
+        assert_eq!(doc.styles.default_chr.font.as_deref(), Some("Hachi Maru Pop"));
+        assert_eq!(doc.styles.get("Title").unwrap().chr.font.as_deref(), Some("Hachi Maru Pop"));
+        assert_eq!(doc.styles.get("Heading1").unwrap().chr.font.as_deref(), Some("Hachi Maru Pop"));
+        assert_eq!(doc.styles.get("Heading2").unwrap().chr.font.as_deref(), Some("Hachi Maru Pop"));
     }
 
     #[test]
@@ -381,6 +396,8 @@ mod tests {
             (report_ja(), &["概要", "背景・目的", "取り組みと成果", "今後の課題・予定"][..]),
         ] {
             assert_eq!(doc.styles.default_chr.font.as_deref(), Some("Hachi Maru Pop"));
+            assert_eq!(doc.styles.get("Title").unwrap().chr.font.as_deref(), Some("Hachi Maru Pop"));
+            assert_eq!(doc.styles.get("Heading1").unwrap().chr.font.as_deref(), Some("Hachi Maru Pop"));
             let text = String::from_utf8(crate::io::save_bytes("template.md", &doc).unwrap()).unwrap();
             for section in sections {
                 assert!(text.contains(section), "missing {section}");

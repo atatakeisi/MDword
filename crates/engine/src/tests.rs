@@ -9003,10 +9003,14 @@ fn japanese_new_documents_and_templates_use_the_requested_font() {
     s.set_editing_language(Some("ja-JP"));
     run(&mut s, "file.new", json!({}));
     assert_eq!(s.doc.styles.default_chr.font.as_deref(), Some("Hachi Maru Pop"));
+    assert_eq!(s.doc.styles.get("Title").unwrap().chr.font.as_deref(), Some("Hachi Maru Pop"));
+    assert_eq!(s.doc.styles.get("Heading1").unwrap().chr.font.as_deref(), Some("Hachi Maru Pop"));
     for (template, title) in [("letter-ja", "ご案内・添え状"), ("resume-ja", "職務経歴書"), ("report-ja", "業務報告書")] {
         run(&mut s, "file.new", json!({"template": template}));
         assert!(text(&s).contains(title));
         assert_eq!(s.doc.styles.default_chr.font.as_deref(), Some("Hachi Maru Pop"));
+        assert_eq!(s.doc.styles.get("Title").unwrap().chr.font.as_deref(), Some("Hachi Maru Pop"));
+        assert_eq!(s.doc.styles.get("Heading1").unwrap().chr.font.as_deref(), Some("Hachi Maru Pop"));
     }
     s.set_editing_language(Some("en-US"));
     s.prefs.default_language = Some("ja-JP".into());

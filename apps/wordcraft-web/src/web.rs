@@ -66,13 +66,16 @@ pub fn start() {
                     let sample = app_bridge.is_none() && query().contains("sample");
                     let japanese =
                         query_param("lang").map_or_else(|| wordcraft_ui_egui::i18n::system_lang().code() == "ja", |lang| lang.starts_with("ja"));
-                    let doc = if sample && japanese {
+                    let mut doc = if sample && japanese {
                         wordcraft_engine::sample::sample_document_ja()
                     } else if sample {
                         wordcraft_engine::sample::sample_document()
                     } else {
                         wordcraft_engine::blank_document(&region)
                     };
+                    if japanese && !sample {
+                        wordcraft_engine::sample::apply_japanese_fonts(&mut doc);
+                    }
                     let mut session = Session::new(doc);
                     session.system_region = region;
                     let messages = Rc::new(RefCell::new(Vec::new()));

@@ -236,7 +236,7 @@ pub(crate) fn normal_document(s: &Session) -> Document {
     if let Some(lang) = s.prefs.default_language.as_ref().or(s.editing_lang.as_ref()) {
         d.styles.default_chr.lang = Some(lang.clone());
         if lang.starts_with("ja") {
-            d.styles.default_chr.font = Some(crate::sample::JAPANESE_DEFAULT_FONT.into());
+            crate::sample::apply_japanese_fonts(&mut d);
         }
     }
     d

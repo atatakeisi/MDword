@@ -837,6 +837,8 @@ fn a_japanese_interface_creates_a_blank_document_with_its_default_font() {
     assert_eq!(app.session.editing_lang.as_deref(), Some("ja-JP"));
     app.run("file.new", serde_json::json!({})).unwrap();
     assert_eq!(app.session.doc.styles.default_chr.font.as_deref(), Some("Hachi Maru Pop"));
+    assert_eq!(app.session.doc.styles.get("Title").unwrap().chr.font.as_deref(), Some("Hachi Maru Pop"));
+    assert_eq!(app.session.doc.styles.get("Heading1").unwrap().chr.font.as_deref(), Some("Hachi Maru Pop"));
 }
 
 #[test]
