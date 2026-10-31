@@ -21,8 +21,9 @@
 //!
 //! # Adding a language
 //! 1. craft-i18n gets `locales/<code>/wordcraft.tsv` and the language's `@id language.name` row.
-//! 2. Add one row to [`LANGUAGES`]. Set its `editing_lang` only when `wordcraft-proof` can proof
-//!    the language (Polish: `pl-PL`): new documents are then written in it.
+//! 2. Add one row to [`LANGUAGES`]. Set its `editing_lang` when `wordcraft-proof` can proof
+//!    the language (Polish: `pl-PL`): new documents are then written in it. Japanese also sets
+//!    an editing language for its document defaults, although Japanese proofing is not provided.
 //!
 //! The Options dropdown and the system-language match pick it up from there.
 //!
@@ -76,7 +77,7 @@ pub static LANGUAGES: [LangInfo; 27] = [
     LangInfo { code: "zh-hans", prefer_hans: true, editing_lang: None },
     // Traditional Chinese (Taiwan vocabulary); `zh-TW`, `zh-HK`, `zh-MO` and `zh-Hant-*` resolve here.
     LangInfo { code: "zh-hant", prefer_hans: true, editing_lang: None },
-    LangInfo { code: "ja", prefer_hans: false, editing_lang: None },
+    LangInfo { code: "ja", prefer_hans: false, editing_lang: Some("ja-JP") },
     LangInfo { code: "ko", prefer_hans: false, editing_lang: None },
     LangInfo { code: "uk", prefer_hans: false, editing_lang: None },
     // Spanish, neutral across Spain and Latin America; `es-ES`, `es-MX`, `es-419` … resolve here.

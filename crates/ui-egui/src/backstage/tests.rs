@@ -4,6 +4,34 @@ use serde_json::json;
 use super::{HOME_TEMPLATES, TEMPLATES, matching_templates};
 use crate::{Services, WordApp};
 
+#[test]
+fn japanese_gallery_uses_japanese_templates_for_previews_and_creation() {
+    for (original, japanese) in [("sample", "sample-ja"), ("letter", "letter-ja"), ("resume", "resume-ja"), ("report", "report-ja")] {
+        assert_eq!(super::localized_template(original, "ja"), japanese);
+        assert_eq!(super::localized_template(original, "en"), original);
+    }
+    assert_eq!(super::localized_template("blank", "ja"), "blank");
+}
+
+#[test]
+fn japanese_templates_open_without_cjk_interface_fonts() {
+    let mut app = WordApp::new(wordcraft_engine::Session::new(wordcraft_doc::Document::new()), Services::default());
+    app.ui.language = "en".into();
+    let ctx = egui::Context::default();
+    for template in ["letter-ja", "resume-ja", "report-ja"] {
+        app.run("file.new", json!({"template": template})).unwrap();
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1440.0, 900.0))),
+            ..Default::default()
+        };
+        ctx.run_ui(input, |ui| {
+            app.logic(ui.ctx());
+            app.ui(ui);
+        })
+        .drop_without_applying_deltas();
+    }
+}
+
 /// #1714: every side-menu item has its own icon, a drawn one (an unknown name would fall back
 /// to a tile with its first letter, the only icon here that draws text).
 #[test]

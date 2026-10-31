@@ -822,9 +822,21 @@ fn an_italian_interface_writes_new_documents_in_italian() {
 }
 
 #[test]
-fn the_editing_languages_are_the_ones_wordcraft_can_proof() {
+fn editing_languages_include_japanese_document_defaults() {
     let with: Vec<(&str, &str)> = LANGUAGES.iter().filter_map(|l| l.editing_lang.map(|e| (l.code, e))).collect();
-    assert_eq!(with, [("pt-br", "pt-BR"), ("pl", "pl-PL"), ("cs", "cs-CZ"), ("tr", "tr-TR"), ("it", "it-IT")]);
+    assert_eq!(with, [("ja", "ja-JP"), ("pt-br", "pt-BR"), ("pl", "pl-PL"), ("cs", "cs-CZ"), ("tr", "tr-TR"), ("it", "it-IT")]);
+}
+
+#[test]
+fn a_japanese_interface_creates_a_blank_document_with_its_default_font() {
+    needs_catalogs!();
+    let mut app = crate::WordApp::new(wordcraft_engine::Session::new(wordcraft_doc::Document::new()), Default::default());
+    let ctx = egui::Context::default();
+    app.run("ui.language", serde_json::json!({"value": "ja"})).unwrap();
+    ctx.run_ui(egui::RawInput::default(), |ui| app.logic(ui.ctx())).drop_without_applying_deltas();
+    assert_eq!(app.session.editing_lang.as_deref(), Some("ja-JP"));
+    app.run("file.new", serde_json::json!({})).unwrap();
+    assert_eq!(app.session.doc.styles.default_chr.font.as_deref(), Some("Hachi Maru Pop"));
 }
 
 #[test]

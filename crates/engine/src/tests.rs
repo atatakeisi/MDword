@@ -8997,6 +8997,26 @@ fn new_documents_follow_the_editing_language() {
     assert_eq!(s.editing_lang, None);
 }
 
+#[test]
+fn japanese_new_documents_and_templates_use_the_requested_font() {
+    let mut s = s();
+    s.set_editing_language(Some("ja-JP"));
+    run(&mut s, "file.new", json!({}));
+    assert_eq!(s.doc.styles.default_chr.font.as_deref(), Some("Hachi Maru Pop"));
+    for (template, title) in [("letter-ja", "ご案内・添え状"), ("resume-ja", "職務経歴書"), ("report-ja", "業務報告書")] {
+        run(&mut s, "file.new", json!({"template": template}));
+        assert!(text(&s).contains(title));
+        assert_eq!(s.doc.styles.default_chr.font.as_deref(), Some("Hachi Maru Pop"));
+    }
+    s.set_editing_language(Some("en-US"));
+    s.prefs.default_language = Some("ja-JP".into());
+    run(&mut s, "file.new", json!({}));
+    assert_eq!(s.doc.styles.default_chr.font.as_deref(), Some("Hachi Maru Pop"));
+    s.prefs.default_language = None;
+    run(&mut s, "file.new", json!({}));
+    assert_ne!(s.doc.styles.default_chr.font.as_deref(), Some("Hachi Maru Pop"));
+}
+
 /// #2882: Set As Default survives preference serialization and overrides the interface language.
 #[test]
 fn default_proofing_language_survives_a_restart() {

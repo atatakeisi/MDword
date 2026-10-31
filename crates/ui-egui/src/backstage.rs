@@ -229,8 +229,22 @@ fn heading(ui: &mut Ui, s: &str) {
 
 /// Draws a template thumbnail and caption as one accessible button, lazily renders and caches a
 /// region-aware page preview, and creates a document from the template on click.
+fn localized_template<'a>(template: &'a str, language: &str) -> &'a str {
+    if language == "ja" {
+        match template {
+            "sample" => "sample-ja",
+            "letter" => "letter-ja",
+            "resume" => "resume-ja",
+            "report" => "report-ja",
+            _ => template,
+        }
+    } else {
+        template
+    }
+}
+
 fn template_tile(ui: &mut Ui, app: &mut WordApp, label: &str, template: &str) {
-    let template = if template == "sample" && crate::i18n::current().code() == "ja" { "sample-ja" } else { template };
+    let template = localized_template(template, crate::i18n::current().code());
     let t = Tokens::get(ui.ctx());
     ui.vertical(|ui| {
         // The thumbnail and its caption are one button named by the caption, so a screen reader

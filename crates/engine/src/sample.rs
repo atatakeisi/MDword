@@ -4,6 +4,8 @@ use wordcraft_doc::para::InlineObject;
 use wordcraft_doc::props::{Align, Border, BorderStyle, Borders, CharProps, NumRef, Rgb, TabAlign, TabLeader, TabStop, TextColor};
 use wordcraft_doc::{Block, Document, ListKind, Paragraph, PartKind, Table, para_block};
 
+pub(crate) const JAPANESE_DEFAULT_FONT: &str = "Hachi Maru Pop";
+
 fn para(text: &str) -> Paragraph {
     Paragraph::with_text(text, CharProps::default())
 }
@@ -140,7 +142,7 @@ pub fn sample_document() -> Document {
 /// A Japanese sample with the same kinds of document elements as the English showcase.
 pub fn sample_document_ja() -> Document {
     let mut d = Document::new();
-    d.styles.default_chr.font = Some("Zen Maru Gothic".into());
+    d.styles.default_chr.font = Some(JAPANESE_DEFAULT_FONT.into());
     d.core.title = "日本語ワープロ 活用ガイド".into();
     d.core.creator = "WordCraft".into();
     let mut b = vec![
@@ -277,6 +279,72 @@ pub fn report() -> Document {
     d
 }
 
+/// A Japanese letter or cover note, ready to adapt for the recipient.
+pub fn letter_ja() -> Document {
+    let mut d = Document::new();
+    d.styles.default_chr.font = Some(JAPANESE_DEFAULT_FONT.into());
+    let lines = [
+        styled("ご案内・添え状", "Title"),
+        para("令和　年　月　日"),
+        para("お名前・ご担当者様"),
+        para("差出人：お名前"),
+        para("拝啓"),
+        para("季節の移り変わりを感じる頃となりました。皆様にはますますご清祥のこととお喜び申し上げます。"),
+        para("平素より格別のお引き立てを賜り、誠にありがとうございます。"),
+        para("このたび、下記のとおりご案内申し上げます。ご確認くださいますようお願い申し上げます。"),
+        para("今後ともどうぞよろしくお願い申し上げます。"),
+        para("敬具"),
+        styled("記", "Heading1"),
+        para("日時：令和　年　月　日"),
+        para("場所：ご記入ください"),
+        para("内容：ご記入ください"),
+        para("以上"),
+    ];
+    d.body = lines.into_iter().map(para_block).collect();
+    d
+}
+
+/// A Japanese work-history and profile template.
+pub fn resume_ja() -> Document {
+    let mut d = Document::new();
+    d.styles.default_chr.font = Some(JAPANESE_DEFAULT_FONT.into());
+    let lines = [
+        styled("職務経歴書", "Title"),
+        para("氏名：ご記入ください　　作成日：令和　年　月　日"),
+        styled("職務要約", "Heading1"),
+        para("これまでの経験と強みを簡潔にご記入ください。"),
+        styled("職務経歴", "Heading1"),
+        para("勤務先・在籍期間：ご記入ください"),
+        para("担当業務・実績：ご記入ください"),
+        styled("学歴", "Heading1"),
+        para("学校名・卒業年月：ご記入ください"),
+        styled("スキル・資格", "Heading1"),
+        para("業務に生かせるスキルや資格をご記入ください。"),
+    ];
+    d.body = lines.into_iter().map(para_block).collect();
+    d
+}
+
+/// A Japanese business report with the main sections in place.
+pub fn report_ja() -> Document {
+    let mut d = Document::new();
+    d.styles.default_chr.font = Some(JAPANESE_DEFAULT_FONT.into());
+    let lines = [
+        styled("業務報告書", "Title"),
+        para("報告日：令和　年　月　日　　報告者：ご記入ください"),
+        styled("概要", "Heading1"),
+        para("報告する業務の内容を簡潔にご記入ください。"),
+        styled("背景・目的", "Heading1"),
+        para("取り組みの背景と目的をご記入ください。"),
+        styled("取り組みと成果", "Heading1"),
+        para("実施した内容と得られた成果をご記入ください。"),
+        styled("今後の課題・予定", "Heading1"),
+        para("残された課題と今後の予定をご記入ください。"),
+    ];
+    d.body = lines.into_iter().map(para_block).collect();
+    d
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -284,7 +352,7 @@ mod tests {
     #[test]
     fn samples_are_valid() {
         assert_eq!(sample_document().word_count(), 361);
-        for d in [sample_document(), sample_document_ja(), letter(), resume(), report()] {
+        for d in [sample_document(), sample_document_ja(), letter(), resume(), report(), letter_ja(), resume_ja(), report_ja()] {
             assert!(d.word_count() > 5);
             let l = wordcraft_layout::layout(&d, &mut wordcraft_layout::LayoutCache::new(), &Default::default());
             assert!(!l.pages.is_empty());
@@ -302,6 +370,21 @@ mod tests {
 
     #[test]
     fn japanese_sample_uses_rounded_default_font() {
-        assert_eq!(sample_document_ja().styles.default_chr.font.as_deref(), Some("Zen Maru Gothic"));
+        assert_eq!(sample_document_ja().styles.default_chr.font.as_deref(), Some("Hachi Maru Pop"));
+    }
+
+    #[test]
+    fn japanese_templates_have_the_expected_sections_and_font() {
+        for (doc, sections) in [
+            (letter_ja(), &["拝啓", "敬具", "記", "以上"][..]),
+            (resume_ja(), &["職務要約", "職務経歴", "学歴", "スキル・資格"][..]),
+            (report_ja(), &["概要", "背景・目的", "取り組みと成果", "今後の課題・予定"][..]),
+        ] {
+            assert_eq!(doc.styles.default_chr.font.as_deref(), Some("Hachi Maru Pop"));
+            let text = String::from_utf8(crate::io::save_bytes("template.md", &doc).unwrap()).unwrap();
+            for section in sections {
+                assert!(text.contains(section), "missing {section}");
+            }
+        }
     }
 }

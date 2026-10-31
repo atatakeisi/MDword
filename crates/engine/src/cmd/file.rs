@@ -218,8 +218,11 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
         "sample" => crate::sample::sample_document(),
         "sample-ja" => crate::sample::sample_document_ja(),
         "letter" => crate::sample::letter(),
+        "letter-ja" => crate::sample::letter_ja(),
         "resume" => crate::sample::resume(),
+        "resume-ja" => crate::sample::resume_ja(),
         "report" => crate::sample::report(),
+        "report-ja" => crate::sample::report_ja(),
         _ => normal_document(s),
     };
     s.add_document(doc);
@@ -227,11 +230,14 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 /// A blank document on the Normal template: the region's paper (#838), written in the editing
-/// language (the templates' text is English).
+/// language.
 pub(crate) fn normal_document(s: &Session) -> Document {
     let mut d = s.blank_document();
     if let Some(lang) = s.prefs.default_language.as_ref().or(s.editing_lang.as_ref()) {
         d.styles.default_chr.lang = Some(lang.clone());
+        if lang.starts_with("ja") {
+            d.styles.default_chr.font = Some(crate::sample::JAPANESE_DEFAULT_FONT.into());
+        }
     }
     d
 }
