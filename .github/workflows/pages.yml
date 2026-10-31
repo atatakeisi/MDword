@@ -1,0 +1,81 @@
+name: Deploy MDword to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install Trunk
+        run: |
+          mkdir -p /tmp/trunk
+          curl -sSL https://github.com/trunk-rs/trunk/releases/download/v0.22.0/trunk-x86_64-unknown-linux-gnu.tar.gz | tar -xz -C /tmp/trunk
+          echo "/tmp/trunk" >> $GITHUB_PATH
+
+      - name: Fetch translations (craft-i18n)
+        run: |
+          git clone https://github.com/storytold/craft-i18n.git /tmp/craft-i18n
+          git -C /tmp/craft-i18n checkout $(cat craft-i18n.rev)
+
+      - name: Fetch base fonts (craft-fonts)
+        run: |
+          git clone https://github.com/storytold/craft-fonts.git /tmp/craft-fonts
+          git -C /tmp/craft-fonts checkout b076417b5880bd4154bd22f00695b1d28c6bea83
+
+      - name: Download 9 Japanese OFL Fonts
+        run: |
+          mkdir -p /tmp/extra-fonts
+          curl -sSL -o /tmp/extra-fonts/ZenMaruGothic-Regular.ttf https://github.com/google/fonts/raw/main/ofl/zenmarugothic/ZenMaruGothic-Regular.ttf
+          curl -sSL -o /tmp/extra-fonts/MPLUSRounded1c-Regular.ttf https://github.com/google/fonts/raw/main/ofl/mplusrounded1c/MPLUSRounded1c-Regular.ttf
+          curl -sSL -o /tmp/extra-fonts/KleeOne-Regular.ttf https://github.com/google/fonts/raw/main/ofl/kleeone/KleeOne-Regular.ttf
+          curl -sSL -o /tmp/extra-fonts/YujiSyuku-Regular.ttf https://github.com/google/fonts/raw/main/ofl/yujisyuku/YujiSyuku-Regular.ttf
+          curl -sSL -o /tmp/extra-fonts/HachiMaruPop-Regular.ttf https://github.com/google/fonts/raw/main/ofl/hachimarupop/HachiMaruPop-Regular.ttf
+          curl -sSL -o /tmp/extra-fonts/SawarabiMincho-Regular.ttf https://github.com/google/fonts/raw/main/ofl/sawarabimincho/SawarabiMincho-Regular.ttf
+          curl -sSL -o /tmp/extra-fonts/SawarabiGothic-Regular.ttf https://github.com/google/fonts/raw/main/ofl/sawarabigothic/SawarabiGothic-Regular.ttf
+          curl -sSL -o /tmp/extra-fonts/ZenOldMincho-Regular.ttf https://github.com/google/fonts/raw/main/ofl/zenoldmincho/ZenOldMincho-Regular.ttf
+          curl -sSL -o /tmp/extra-fonts/ShipporiMincho-Regular.ttf https://github.com/google/fonts/raw/main/ofl/shipporimincho/ShipporiMincho-Regular.ttf
+
+      - name: Build WebAssembly with Trunk
+        run: |
+          cd apps/wordcraft-web
+          CRAFT_I18N_DIR=/tmp/craft-i18n CRAFT_FONTS_DIR=/tmp/craft-fonts trunk --skip-version-check build --release --dist ../../dist/web-ja --public-url "./"
+
+      - name: Assemble GitHub Pages distribution
+        run: |
+          mkdir -p dist/web-ja/fonts
+          cp -r /tmp/extra-fonts/* dist/web-ja/fonts/
+          touch dist/web-ja/.nojekyll
+          cp LICENSE-MIT LICENSE-APACHE NOTICE dist/web-ja/
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/web-ja
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
