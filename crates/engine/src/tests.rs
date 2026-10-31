@@ -11475,3 +11475,18 @@ fn scale_font_sizes_reaches_char_table_and_cs_sizes_and_unset_default() {
     assert_eq!(grid.header_chr.size, Some(16.0));
     assert_eq!(grid.regions.get(&TablePart::Band2Horz).unwrap().chr.size, Some(10.0));
 }
+#[test]
+fn opening_macro_document_requires_sanitizing() {
+    let mut source = wordcraft_doc::Document::from_text("text survives");
+    source.passthrough.insert(wordcraft_docx::VBA_PROJECT_PART.into(), std::sync::Arc::new(vec![1, 2, 3]));
+    let bytes = wordcraft_docx::write_as(&source, wordcraft_docx::Flavor::MacroDocument).unwrap();
+    let data = crate::cmd::insert::base64_encode(&bytes);
+    let mut session = crate::Session::new(wordcraft_doc::Document::new());
+    let err = session.run("file.open", &serde_json::json!({"path":"test.docx", "data": data})).unwrap_err();
+    assert!(err.to_string().contains("macro sanitization approval required"));
+    session.run("file.open", &serde_json::json!({"path":"test.docx", "data": data, "sanitize": true})).unwrap();
+    assert!(!session.doc.passthrough.contains_key(wordcraft_docx::VBA_PROJECT_PART));
+    assert!(session.path.is_none());
+    assert!(session.dirty);
+    assert!(session.doc.word_count() > 0);
+}

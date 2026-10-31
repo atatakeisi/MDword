@@ -1,11 +1,26 @@
-//! Saving by extension writes the right OOXML package flavour (.docx/.docm/.dotx/.dotm), and a
-//! macro-enabled document keeps its VBA project (as opaque bytes) when it is saved again.
+//! Low-level DOCX package preservation tests. The engine separately refuses macro-enabled output.
 
 use std::collections::BTreeMap;
 use std::io::{Cursor, Read, Write};
 
 use wordcraft_doc::Document;
-use wordcraft_engine::io::{open_bytes, save_bytes};
+fn read_package(_name: &str, bytes: &[u8]) -> Result<Document, String> {
+    wordcraft_docx::read(bytes).map_err(|e| e.to_string())
+}
+
+fn write_package(name: &str, doc: &Document) -> Result<Vec<u8>, String> {
+    let ext = name.rsplit('.').next().unwrap_or("");
+    let flavor = wordcraft_docx::Flavor::from_ext(ext).ok_or("unsupported package")?;
+    wordcraft_docx::write_as(doc, flavor).map_err(|e| e.to_string())
+}
+
+#[test]
+fn engine_rejects_macro_enabled_output() {
+    let doc = Document::from_text("safe");
+    for name in ["output.docm", "output.DOTM"] {
+        assert!(wordcraft_engine::io::save_bytes(name, &doc).is_err());
+    }
+}
 
 const CT_DOCX: &str = "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml";
 const CT_DOCM: &str = "application/vnd.ms-word.document.macroEnabled.main+xml";
@@ -120,8 +135,8 @@ fn assert_package_consistent(files: &BTreeMap<String, Vec<u8>>) {
 #[test]
 fn docm_keeps_its_macros_when_saved_again() {
     let vba = fake_vba();
-    let doc = open_bytes("m.docm", &docm_package(&vba, CT_DOCM)).expect("open docm");
-    let out = unzip(&save_bytes("m.docm", &doc).expect("save docm"));
+    let doc = read_package("m.docm", &docm_package(&vba, CT_DOCM)).expect("open docm");
+    let out = unzip(&write_package("m.docm", &doc).expect("save docm"));
 
     assert_eq!(content_type(&out, "/word/document.xml").as_deref(), Some(CT_DOCM));
     assert!(out.get("word/vbaProject.bin") == Some(&vba), "vbaProject.bin must survive byte for byte");
@@ -135,7 +150,7 @@ fn docm_keeps_its_macros_when_saved_again() {
     assert_package_consistent(&out);
 
     // And again: a second generation is identical in the parts that matter.
-    let again = unzip(&save_bytes("m.docm", &open_bytes("m.docm", &zip(&out)).expect("reopen")).expect("resave"));
+    let again = unzip(&write_package("m.docm", &read_package("m.docm", &zip(&out)).expect("reopen")).expect("resave"));
     assert!(again.get("word/vbaProject.bin") == Some(&vba), "vbaProject.bin must survive byte for byte");
     assert_eq!(text(&again, "word/vbaData.xml"), VBA_DATA);
 }
@@ -143,8 +158,8 @@ fn docm_keeps_its_macros_when_saved_again() {
 #[test]
 fn dotm_keeps_its_macros_when_saved_again() {
     let vba = fake_vba();
-    let doc = open_bytes("t.dotm", &docm_package(&vba, CT_DOTM)).expect("open dotm");
-    let out = unzip(&save_bytes("t.dotm", &doc).expect("save dotm"));
+    let doc = read_package("t.dotm", &docm_package(&vba, CT_DOTM)).expect("open dotm");
+    let out = unzip(&write_package("t.dotm", &doc).expect("save dotm"));
     assert_eq!(content_type(&out, "/word/document.xml").as_deref(), Some(CT_DOTM));
     assert!(out.get("word/vbaProject.bin") == Some(&vba), "vbaProject.bin must survive byte for byte");
     assert_eq!(text(&out, "word/vbaData.xml"), VBA_DATA);
@@ -155,7 +170,7 @@ fn dotm_keeps_its_macros_when_saved_again() {
 fn each_extension_gets_its_main_content_type() {
     let doc = Document::from_text("Plain");
     for (name, ct) in [("a.docx", CT_DOCX), ("a.docm", CT_DOCM), ("a.dotx", CT_DOTX), ("a.dotm", CT_DOTM), ("A.DOCM", CT_DOCM)] {
-        let out = unzip(&save_bytes(name, &doc).unwrap_or_else(|e| panic!("save {name}: {e}")));
+        let out = unzip(&write_package(name, &doc).unwrap_or_else(|e| panic!("save {name}: {e}")));
         assert_eq!(content_type(&out, "/word/document.xml").as_deref(), Some(ct), "{name}");
         // No macros to carry: a valid macro-enabled package simply has no VBA parts.
         assert!(!out.keys().any(|k| k.contains("vba")), "{name}: {:?}", out.keys());
@@ -167,16 +182,16 @@ fn each_extension_gets_its_main_content_type() {
 #[test]
 fn saving_macros_as_docx_drops_them_cleanly() {
     let vba = fake_vba();
-    let doc = open_bytes("m.docm", &docm_package(&vba, CT_DOCM)).expect("open docm");
+    let doc = read_package("m.docm", &docm_package(&vba, CT_DOCM)).expect("open docm");
     for name in ["m.docx", "m.dotx"] {
-        let out = unzip(&save_bytes(name, &doc).expect("save"));
+        let out = unzip(&write_package(name, &doc).expect("save"));
         assert!(!out.keys().any(|k| k.contains("vba")), "{name}: {:?}", out.keys());
         assert!(!text(&out, "[Content_Types].xml").contains("vba"), "{name}: no VBA content type left behind");
         assert!(!text(&out, "word/_rels/document.xml.rels").contains("vbaProject"), "{name}: no dangling relationship");
         assert_package_consistent(&out);
     }
     // The open document still holds the project: Save As .docm afterwards keeps it.
-    let back = unzip(&save_bytes("m.docm", &doc).expect("save docm"));
+    let back = unzip(&write_package("m.docm", &doc).expect("save docm"));
     assert!(back.get("word/vbaProject.bin") == Some(&vba), "vbaProject.bin must survive byte for byte");
 }
 
@@ -227,9 +242,9 @@ fn hostile_vba_parts_never_panic() {
 
     for (label, files) in cases {
         // A broken macro part never stops the document itself from opening.
-        let doc = open_bytes("h.docm", &zip(&files)).unwrap_or_else(|e| panic!("{label}: open: {e}"));
+        let doc = read_package("h.docm", &zip(&files)).unwrap_or_else(|e| panic!("{label}: open: {e}"));
         for name in ["h.docm", "h.dotm", "h.docx"] {
-            let out = unzip(&save_bytes(name, &doc).unwrap_or_else(|e| panic!("{label}: save {name}: {e}")));
+            let out = unzip(&write_package(name, &doc).unwrap_or_else(|e| panic!("{label}: save {name}: {e}")));
             assert_package_consistent(&out);
             assert!(wordcraft_docx::read(&zip(&out)).is_ok(), "{label}: {name} reads back");
             if let Some(bin) = out.get("word/vbaProject.bin") {
@@ -242,8 +257,8 @@ fn hostile_vba_parts_never_panic() {
 
 /// Open `files` as a .docm, save it as .docm, and return the saved package.
 fn resave_docm(files: &BTreeMap<String, Vec<u8>>) -> BTreeMap<String, Vec<u8>> {
-    let doc = open_bytes("m.docm", &zip(files)).expect("open docm");
-    unzip(&save_bytes("m.docm", &doc).expect("save docm"))
+    let doc = read_package("m.docm", &zip(files)).expect("open docm");
+    unzip(&write_package("m.docm", &doc).expect("save docm"))
 }
 
 #[test]
@@ -362,7 +377,7 @@ fn vba_signatures_survive_save() {
         let name = format!("s.{ext}");
         let mut pkg = zip(&src);
         for generation in 1..=2 {
-            let out = unzip(&save_bytes(&name, &open_bytes(&name, &pkg).expect("open")).expect("save"));
+            let out = unzip(&write_package(&name, &read_package(&name, &pkg).expect("open")).expect("save"));
             let vba_rels = text(&out, "word/_rels/vbaProject.bin.rels");
             for (kind, part, ctype) in SIGNATURES {
                 assert!(out.get(*part) == src.get(*part), "{name} gen {generation}: {part} must survive byte for byte");
@@ -378,9 +393,9 @@ fn vba_signatures_survive_save() {
         }
     }
     // A macro-free package drops the whole VBA set cleanly.
-    let doc = open_bytes("s.docm", &zip(&signed_package(&vba, CT_DOCM))).expect("open");
+    let doc = read_package("s.docm", &zip(&signed_package(&vba, CT_DOCM))).expect("open");
     for name in ["s.docx", "s.dotx"] {
-        let out = unzip(&save_bytes(name, &doc).expect("save"));
+        let out = unzip(&write_package(name, &doc).expect("save"));
         assert!(!out.keys().any(|k| k.contains("vba")), "{name}: {:?}", out.keys());
         assert!(!text(&out, "[Content_Types].xml").contains("vba"), "{name}");
         assert_package_consistent(&out);
@@ -410,9 +425,9 @@ fn vba_related_parts_are_bounded_and_never_shadow_ours() {
         files.insert(format!("word/extra{i}.bin"), vec![i as u8; 3]);
     }
     files.insert("word/_rels/vbaProject.bin.rels".into(), rels.into_bytes());
-    let doc = open_bytes("m.docm", &zip(&files)).expect("open");
-    let fresh = unzip(&save_bytes("m.docx", &Document::from_text("x")).expect("save"));
-    let out = unzip(&save_bytes("m.docm", &doc).expect("save"));
+    let doc = read_package("m.docm", &zip(&files)).expect("open");
+    let fresh = unzip(&write_package("m.docx", &Document::from_text("x")).expect("save"));
+    let out = unzip(&write_package("m.docm", &doc).expect("save"));
 
     let vba_rels = text(&out, "word/_rels/vbaProject.bin.rels");
     for t in ["styles.xml", "document.xml", "_rels/document.xml.rels", "../docProps/core.xml"] {
@@ -443,7 +458,7 @@ fn vba_targets_match_part_names_case_insensitively() {
         // OPC part names compare case-insensitively: /WORD/x names the part stored as word/x.
         retarget(&mut src, &[("vbaData.xml", "/WORD/vbaData.xml"), ("vbaProjectSignature.bin", "../WORD/vbaProjectSignature.bin")]);
         let name = format!("u.{ext}");
-        let out = unzip(&save_bytes(&name, &open_bytes(&name, &zip(&src)).expect("open")).expect("save"));
+        let out = unzip(&write_package(&name, &read_package(&name, &zip(&src)).expect("open")).expect("save"));
         assert_eq!(text(&out, "word/vbaData.xml"), VBA_DATA, "{name}");
         assert!(out.get("word/vbaProjectSignature.bin") == src.get("word/vbaProjectSignature.bin"), "{name}: signature must survive");
         let vba_rels = text(&out, "word/_rels/vbaProject.bin.rels");
@@ -464,7 +479,7 @@ fn vba_part_names_with_a_colon_stay_relative_references() {
     retarget(&mut src, &[("vbaProjectSignature.bin", "/word/sig:legacy.bin")]);
     let mut pkg = zip(&src);
     for generation in 1..=2 {
-        let out = unzip(&save_bytes("c.docm", &open_bytes("c.docm", &pkg).expect("open")).expect("save"));
+        let out = unzip(&write_package("c.docm", &read_package("c.docm", &pkg).expect("open")).expect("save"));
         assert!(out.get("word/sig:legacy.bin") == Some(&sig), "gen {generation}: signature must survive byte for byte");
         let vba_rels = text(&out, "word/_rels/vbaProject.bin.rels");
         assert!(vba_rels.contains(&format!(r#"Type="{}" Target="./sig:legacy.bin""#, SIGNATURES[0].0)), "gen {generation}: {vba_rels}");

@@ -288,12 +288,11 @@ impl WordApp {
         self.default_save_name()
     }
 
-    /// The name Save suggests: the open file's own Word format (so a .docm keeps its macros),
-    /// otherwise .docx.
+    /// The name Save suggests: a Word template stays a template, otherwise .docx.
     pub(crate) fn default_save_name(&self) -> String {
-        let ext = self.session.path.as_ref().and_then(|p| p.extension()).map(|e| e.to_string_lossy().to_string());
+        let ext = self.session.path.as_ref().and_then(|p| p.extension()).map(|e| e.to_string_lossy().to_ascii_lowercase());
         match ext {
-            Some(e) if wordcraft_engine::io::is_word_package(&e) => format!("{}.{e}", self.title_stem()),
+            Some(e) if e == "dotx" => format!("{}.dotx", self.title_stem()),
             _ => format!("{}.docx", self.title_stem()),
         }
     }

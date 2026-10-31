@@ -216,6 +216,7 @@ fn privacy(s: &Session) -> Value {
 fn new(s: &mut Session, v: &Value) -> CmdResult {
     let doc = match p::str(v, "template").unwrap_or("blank") {
         "sample" => crate::sample::sample_document(),
+        "sample-ja" => crate::sample::sample_document_ja(),
         "letter" => crate::sample::letter(),
         "resume" => crate::sample::resume(),
         "report" => crate::sample::report(),
@@ -268,6 +269,14 @@ fn open(s: &mut Session, v: &Value) -> CmdResult {
     };
     // Plain text and Markdown carry no language: they are in the editing language.
     let ext = std::path::Path::new(path).extension().and_then(std::ffi::OsStr::to_str).unwrap_or("").to_ascii_lowercase();
+    let has_macros = crate::io::requires_macro_sanitization(path, &doc);
+    let sanitize = p::bool(v, "sanitize") == Some(true);
+    if has_macros && !sanitize {
+        return Err(CmdError::Failed("macro sanitization approval required".into()));
+    }
+    if sanitize {
+        wordcraft_docx::strip_active_content(&mut doc);
+    }
     if let Some(lang) = s.prefs.default_language.as_ref().or(s.editing_lang.as_ref())
         && matches!(ext.as_str(), "txt" | "text" | "md" | "markdown")
     {
@@ -283,7 +292,10 @@ fn open(s: &mut Session, v: &Value) -> CmdResult {
     if let Some(z) = s.doc.settings.zoom {
         super::view::restore_zoom(s, z);
     }
-    s.path = Some(path.into());
+    s.path = if sanitize { None } else { Some(path.into()) };
+    if sanitize {
+        s.dirty = true;
+    }
     // Like Word, a document opened with a password is saved with it again.
     if encrypted {
         s.password = password.map(crate::io::Password::new);
@@ -333,13 +345,19 @@ fn encrypt(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn save(s: &mut Session, v: &Value) -> CmdResult {
-    let path = match p::str(v, "path").map(std::path::PathBuf::from).or_else(|| s.path.clone()) {
+    let mut path = match p::str(v, "path").map(std::path::PathBuf::from).or_else(|| s.path.clone()) {
         Some(p) => p,
         None => {
             s.push_ui_request(json!({"open": "saveAs"}));
             return Ok(json!({"saved": false}));
         }
     };
+    if path.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("docm") || e.eq_ignore_ascii_case("dotm")) {
+        path.set_extension("docx");
+        if path.exists() {
+            return Err(CmdError::Failed(format!("{} already exists; choose a different save path", path.display())));
+        }
+    }
     if let Some(pw) = v.get("password").filter(|pw| !pw.is_null()) {
         let Some(pw) = pw.as_str().filter(|pw| !pw.is_empty()) else {
             return Err(CmdError::Params("`password` must be a non-empty string (file.encrypt removes a password)".into()));

@@ -6,6 +6,57 @@ use super::names::{CatalogEntry, file_face_names, style_italic, style_weight};
 use super::names::{LocalName, MAX_FAMILY_NAME, MAX_FILE_FACES, enumerate_faces, make_face, name_language_matches};
 use super::{Arc, FontDb, HashMap};
 
+#[cfg(target_arch = "wasm32")]
+const JAPANESE_NAMES: &[(&str, &str)] = &[
+    ("BIZ UDPGothic", "BIZ UDPゴシック"),
+    ("BIZ UDMincho", "BIZ UD明朝"),
+    ("Shippori Mincho", "しっぽり明朝"),
+    ("Zen Maru Gothic", "Zen丸ゴシック"),
+    ("M PLUS Rounded 1c", "M PLUS 丸ゴシック"),
+    ("Klee One", "Klee One (教科書体)"),
+    ("Yuji Syuku", "佑字 粛 (毛筆・行書)"),
+    ("Hachi Maru Pop", "Hachi Maru Pop (POP体)"),
+    ("Sawarabi Mincho", "さわらび明朝"),
+    ("Sawarabi Gothic", "さわらびゴシック"),
+    ("Zen Old Mincho", "Zenオールド明朝"),
+];
+
+#[cfg(target_arch = "wasm32")]
+pub(super) const PRESETS: &[(&str, &str, &[&str])] = &[
+    ("Yu Mincho", "游明朝", &["Shippori Mincho", "BIZ UDMincho"]),
+    ("Hiragino Mincho ProN", "ヒラギノ明朝 ProN", &["Shippori Mincho", "BIZ UDMincho"]),
+    ("MS Mincho", "ＭＳ 明朝", &["BIZ UDMincho", "Shippori Mincho", "Sawarabi Mincho"]),
+    ("MS PMincho", "ＭＳ Ｐ明朝", &["BIZ UDMincho", "Shippori Mincho", "Sawarabi Mincho"]),
+    ("Yu Gothic", "游ゴシック", &["BIZ UDPGothic", "Sawarabi Gothic", "Zen Maru Gothic"]),
+    ("Meiryo", "メイリオ", &["BIZ UDPGothic", "Sawarabi Gothic", "Zen Maru Gothic"]),
+    ("Hiragino Kaku Gothic ProN", "ヒラギノ角ゴ ProN", &["BIZ UDPGothic", "Sawarabi Gothic", "Zen Maru Gothic"]),
+    ("MS Gothic", "ＭＳ ゴシック", &["BIZ UDPGothic", "Sawarabi Gothic", "Zen Maru Gothic"]),
+    ("MS PGothic", "ＭＳ Ｐゴシック", &["BIZ UDPGothic", "Sawarabi Gothic", "Zen Maru Gothic"]),
+    ("HGPSoeiKakugothicUB", "HGP創英角ゴシックUB", &["BIZ UDPGothic", "Sawarabi Gothic", "Zen Maru Gothic"]),
+    ("HGMaruGothicMPRO", "HG丸ゴシックM-PRO", &["Zen Maru Gothic", "M PLUS Rounded 1c", "BIZ UDPGothic"]),
+    ("HGKyokashotai", "HG教科書体", &["Klee One", "BIZ UDMincho"]),
+    ("HGSeikaishotaiPRO", "HG正楷書体-PRO", &["Yuji Syuku", "Shippori Mincho", "BIZ UDMincho"]),
+    ("Century", "", &["Source Serif 4"]),
+    ("Times New Roman", "", &["Source Serif 4"]),
+    ("Georgia", "", &["Source Serif 4"]),
+    ("Cambria", "", &["Source Serif 4"]),
+    ("Arial", "", &["Inter", "Source Sans 3"]),
+    ("Calibri", "", &["Inter", "Source Sans 3"]),
+    ("Aptos", "", &["Inter", "Source Sans 3"]),
+    ("Verdana", "", &["Inter", "Source Sans 3"]),
+    ("Segoe UI", "", &["Inter", "Source Sans 3"]),
+    ("Consolas", "", &["JetBrains Mono"]),
+    ("Courier New", "", &["JetBrains Mono"]),
+];
+
+#[cfg(target_arch = "wasm32")]
+pub(super) fn preset_targets(family: &str) -> Option<&'static [&'static str]> {
+    PRESETS
+        .iter()
+        .find(|(en, ja, _)| en.eq_ignore_ascii_case(family) || (!ja.is_empty() && ja.eq_ignore_ascii_case(family)))
+        .map(|(_, _, targets)| *targets)
+}
+
 impl FontDb {
     /// Family names available (loaded plus cataloged system fonts), sorted and deduplicated. Like
     /// Word's font list, this holds each face's legacy family name too ("Roboto Light", "Inter
@@ -14,6 +65,8 @@ impl FontDb {
         let mut v: Vec<String> = self.read_faces().iter().flat_map(|f| [f.family.clone(), f.legacy_family.clone()]).collect();
         #[cfg(not(target_arch = "wasm32"))]
         v.extend(self.read_catalog().iter().flat_map(|c| [c.family.clone(), c.legacy.clone()]));
+        #[cfg(target_arch = "wasm32")]
+        v.extend(PRESETS.iter().map(|(en, _, _)| (*en).to_owned()));
         v.sort_by_key(|a| a.to_lowercase());
         v.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
         v
@@ -25,6 +78,8 @@ impl FontDb {
         let mut v: Vec<String> = self.read_faces().iter().filter(|f| f.is_east_asian()).map(|f| f.family.clone()).collect();
         #[cfg(not(target_arch = "wasm32"))]
         v.extend(self.read_catalog().iter().filter(|c| c.east_asian).map(|c| c.family.clone()));
+        #[cfg(target_arch = "wasm32")]
+        v.extend(PRESETS.iter().filter(|(_, ja, _)| !ja.is_empty()).map(|(en, _, _)| (*en).to_owned()));
         v.sort_by_key(|a| a.to_lowercase());
         v.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
         v
@@ -48,6 +103,19 @@ impl FontDb {
         #[cfg(not(target_arch = "wasm32"))]
         for c in self.read_catalog().iter() {
             add(&c.local);
+        }
+        #[cfg(target_arch = "wasm32")]
+        if lang.to_ascii_lowercase().starts_with("ja") {
+            for &(en, ja) in JAPANESE_NAMES {
+                if self.is_loaded(en) && !v.iter().any(|(e, _)| e.eq_ignore_ascii_case(en)) {
+                    v.push((en.to_owned(), ja.to_owned()));
+                }
+            }
+            for &(en, ja, _) in PRESETS {
+                if !ja.is_empty() && !v.iter().any(|(e, _)| e.eq_ignore_ascii_case(en)) {
+                    v.push((en.to_owned(), ja.to_owned()));
+                }
+            }
         }
         v
     }
@@ -74,6 +142,14 @@ impl FontDb {
         if let Some(e) = self.read_catalog().iter().find_map(|c| hit(&c.local)) {
             return Some(e);
         }
+        #[cfg(target_arch = "wasm32")]
+        if let Some(en) = JAPANESE_NAMES
+            .iter()
+            .find_map(|(en, ja)| ja.eq_ignore_ascii_case(family).then_some(*en))
+            .or_else(|| PRESETS.iter().find_map(|(en, ja, _)| (!ja.is_empty() && ja.eq_ignore_ascii_case(family)).then_some(*en)))
+        {
+            return Some(en.to_owned());
+        }
         None
     }
 
@@ -82,6 +158,26 @@ impl FontDb {
     /// localized name (宋体), those of the family it names.
     pub fn styles(&self, family: &str) -> Vec<String> {
         let v = self.styles_named(family);
+        #[cfg(target_arch = "wasm32")]
+        if v.is_empty()
+            && let Some(en) = self.english_family(family)
+        {
+            let exact = self.styles_named(&en);
+            if !exact.is_empty() {
+                return exact;
+            }
+        }
+        #[cfg(target_arch = "wasm32")]
+        if v.is_empty()
+            && let Some(targets) = preset_targets(family)
+        {
+            for target in targets {
+                let styles = self.styles_named(target);
+                if !styles.is_empty() {
+                    return styles;
+                }
+            }
+        }
         match self.english_family(family) {
             Some(en) if v.is_empty() => self.styles_named(&en),
             _ => v,

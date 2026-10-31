@@ -57,6 +57,18 @@ use paragraph::{para_fields, paragraph_dialog};
 #[derive(Clone, Debug, Serialize)]
 #[serde(tag = "dialog", rename_all = "camelCase")]
 pub enum Dialog {
+    MarkdownPreview {
+        tab: u8,
+        text: String,
+        #[serde(skip)]
+        flow: wordcraft_formats::model::Flow,
+    },
+    SanitizeMacro {
+        name: String,
+        command: String,
+        #[serde(skip)]
+        params: Value,
+    },
     RenameDocument {
         name: String,
         message: String,
@@ -480,6 +492,8 @@ pub enum Dialog {
 impl Dialog {
     pub fn name(&self) -> &'static str {
         match self {
+            Dialog::MarkdownPreview { .. } => "markdownPreview",
+            Dialog::SanitizeMacro { .. } => "sanitizeMacro",
             Dialog::RenameDocument { .. } => "renameDocument",
             Dialog::Font { .. } => "font",
             Dialog::Paragraph { .. } => "paragraph",

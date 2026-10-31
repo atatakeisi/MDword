@@ -16,6 +16,19 @@ macro_rules! needs_catalogs {
     };
 }
 
+#[test]
+fn japanese_word_processing_terms_override_shared_catalogs() {
+    needs_catalogs!();
+    let ja = lang("ja");
+    assert_eq!(tr(ja, "Subtitle"), "副題");
+    assert_eq!(trc(ja, "template", "Blank document"), "白紙の文書");
+    assert_eq!(tr(Lang::EN, "Subtitle"), "Subtitle");
+    set_current(ja);
+    assert_eq!(get("template", "Report"), Some("レポート"));
+    assert_eq!(get("other", "Report"), None);
+    set_current(Lang::EN);
+}
+
 /// The translations in `code`'s embedded WordCraft catalog, plural forms apart: the fonts must
 /// cover WordCraft's own wording. (The shared catalog holds every app's; the CJK checks read it too.)
 fn translations(code: &str) -> Vec<String> {

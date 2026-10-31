@@ -42,129 +42,13 @@ pub(super) fn home(app: &mut WordApp, ui: &mut Ui) {
             format_painter_button(ui, app);
         });
     });
-    group(ui, "Font", Some("format.fontDialog"), app, |ui, app| {
-        stack(ui, |ui| {
-            crate::widgets::row(ui, |ui| {
-                let font = st.get("font").and_then(Value::as_str).unwrap_or("").to_string();
-                let font = app.previews.font_shown(&font);
-                let fams = app.previews.families();
-                let recent: Vec<String> = app.ui.recent_fonts.iter().map(|f| app.previews.font_shown(f)).collect();
-                let prev = app.previews.font_preview_fn();
-                if let Some(f) = crate::widgets::font_combo_with_recent_hint(
-                    ui,
-                    crate::widgets::FontComboOptions {
-                        id: "font",
-                        width: 150.0,
-                        current: &font,
-                        items: &fams,
-                        recent: &recent,
-                        preview: Some(&*prev),
-                        tip: tl!("Font"),
-                    },
-                ) {
-                    let _ = if f == crate::widgets::ADD_FONT {
-                        app.run("font.add", json!({}))
-                    } else if f == crate::widgets::LOAD_SYSTEM_FONTS {
-                        app.run("font.loadSystem", json!({}))
-                    } else {
-                        let f = app.previews.font_stored(&f);
-                        app.run("format.font", json!({"name": f}))
-                    };
-                }
-                let size = st
-                    .get("size")
-                    .and_then(Value::as_f64)
-                    .map(|s| if s.fract() == 0.0 { format!("{s:.0}") } else { format!("{s}") })
-                    .unwrap_or_default();
-                let sizes: Vec<String> =
-                    wordcraft_engine::cmd::format::SIZES.iter().map(|s| if s.fract() == 0.0 { format!("{s:.0}") } else { s.to_string() }).collect();
-                if let Some(v) = crate::widgets::combo_hint(ui, "size", 52.0, &size, &sizes, None, tl!("Font Size"))
-                    && let Ok(x) = v.trim().parse::<f64>()
-                {
-                    let _ = app.run("format.size", json!({"size": x}));
-                }
-                ui.add_space(3.0);
-                small(ui, app, "grow", None, "Increase Font Size", crate::widgets::ButtonAction::new("format.growFont", json!({}), false));
-                small(ui, app, "shrink", None, "Decrease Font Size", crate::widgets::ButtonAction::new("format.shrinkFont", json!({}), false));
-                menu_button(ui, app, crate::widgets::MenuButtonOptions::new("case", None, "Change Case", false, "format.changeCase"), |ui, app| {
-                    mi(ui, app, "Sentence case.", "format.changeCase", json!({"mode": "sentence"}));
-                    mi(ui, app, "lowercase", "format.changeCase", json!({"mode": "lower"}));
-                    mi(ui, app, "UPPERCASE", "format.changeCase", json!({"mode": "upper"}));
-                    mi(ui, app, "Capitalize Each Word", "format.changeCase", json!({"mode": "title"}));
-                    mi(ui, app, "tOGGLE cASE", "format.changeCase", json!({"mode": "toggle"}));
-                });
-                small(ui, app, "clear", None, "Clear All Formatting", crate::widgets::ButtonAction::new("format.clear", json!({}), false));
-                small(ui, app, "phonetic", None, "Phonetic Guide", crate::widgets::ButtonAction::new("format.phonetic", json!({}), false));
-            });
-            ui.add_space(3.0);
-            crate::widgets::row(ui, |ui| {
-                small(ui, app, "bold", None, "Bold", crate::widgets::ButtonAction::new("format.bold", json!({}), flag("bold")));
-                small(ui, app, "italic", None, "Italic", crate::widgets::ButtonAction::new("format.italic", json!({}), flag("italic")));
-                split(
-                    ui,
-                    app,
-                    "underline",
-                    "Underline",
-                    crate::widgets::ButtonAction::new("format.underline", json!({}), flag("underline")),
-                    None,
-                    underline_menu,
-                );
-                small(ui, app, "strike", None, "Strikethrough", crate::widgets::ButtonAction::new("format.strikethrough", json!({}), flag("strike")));
-                small(ui, app, "subscript", None, "Subscript", crate::widgets::ButtonAction::new("format.subscript", json!({}), flag("subscript")));
-                small(
-                    ui,
-                    app,
-                    "superscript",
-                    None,
-                    "Superscript",
-                    crate::widgets::ButtonAction::new("format.superscript", json!({}), flag("superscript")),
-                );
-                small(ui, app, "charborder", None, "Character Border", crate::widgets::ButtonAction::new("format.border", json!({}), flag("border")));
-                small(ui, app, "enclose", None, "Enclose Characters", crate::widgets::ButtonAction::new("format.enclose", json!({}), false));
-                ui.add_space(4.0);
-                menu_button(ui, app, crate::widgets::MenuButtonOptions::new("effects", None, "Text Effects and Typography", false, ""), |ui, app| {
-                    let theme = app.session.doc.settings.theme_colors.clone();
-                    crate::wordart_menus::style_gallery(ui, app, "format.textEffects");
-                    ui.separator();
-                    ui.menu_button(tl!("Text Fill"), |ui| crate::wordart_menus::fill_menu(ui, app, &theme));
-                    let outline = crate::wordart_menus::current_outline(app);
-                    ui.menu_button(tl!("Text Outline"), |ui| crate::wordart_menus::outline_menu(ui, app, &theme, outline));
-                    crate::wordart_menus::effects_menu(ui, app, &theme, false);
-                    ui.separator();
-                    mi(ui, app, "Outline", "format.outline", json!({}));
-                    mi(ui, app, "Shadow", "format.shadow", json!({}));
-                    mi(ui, app, "Small Caps", "format.smallCaps", json!({}));
-                    mi(ui, app, "All Caps", "format.allCaps", json!({}));
-                    mi(ui, app, "Double Strikethrough", "format.doubleStrikethrough", json!({}));
-                });
-                let hl = app.canvas.last_highlight.clone();
-                let (icon, sw, color) = crate::mini_toolbar::highlight_button_appearance(&hl);
-                split(
-                    ui,
-                    app,
-                    icon,
-                    "Text Highlight Color",
-                    crate::widgets::ButtonAction::new("format.highlight", json!({"color": color}), false),
-                    sw,
-                    crate::mini_toolbar::highlight_menu,
-                );
-                let fc = app.canvas.last_font_color.clone();
-                let sw = wordcraft_doc::Rgb::parse(&fc).map(crate::theme::c32);
-                split(
-                    ui,
-                    app,
-                    "fontcolor",
-                    "Font Color",
-                    crate::widgets::ButtonAction::new("format.color", json!({"color": fc}), false),
-                    sw,
-                    |ui, app| {
-                        mi(ui, app, "Automatic", "format.color", json!({"color": "auto"}));
-                        let theme = app.session.doc.settings.theme_colors.clone();
-                        crate::colors::menu(ui, app, &theme, Target::cmd("format.color").remember(Remember::FontColor));
-                    },
-                );
-            });
-        });
+    group(ui, "AI / Export", None, app, |ui, app| {
+        big(ui, app, "preview", "Markdown\nPreview", "ui.markdownPreview", json!({}), false);
+        big(ui, app, "copy", "Copy\nMarkdown", "ui.copyMarkdown", json!({}), false);
+        big(ui, app, "export", "Export\nText", "ui.exportText", json!({}), false);
+    });
+    group(ui, "Styles", Some("styles.pane"), app, |ui, app| {
+        crate::previews::style_gallery(app, ui, &st);
     });
     group(ui, "Paragraph", Some("para.dialog"), app, |ui, app| {
         let rp = app.session.doc.para_at(&app.session.sel.focus).map(|p| app.session.doc.styles.resolve_para(&p.props));
@@ -328,9 +212,6 @@ pub(super) fn home(app: &mut WordApp, ui: &mut Ui) {
             });
         });
     });
-    group(ui, "Styles", Some("styles.pane"), app, |ui, app| {
-        crate::previews::style_gallery(app, ui, &st);
-    });
     group(ui, "Editing", None, app, |ui, app| {
         stack(ui, |ui| {
             menu_button(ui, app, crate::widgets::MenuButtonOptions::new("find", Some("Find"), "Find", false, "edit.find"), |ui, app| {
@@ -344,6 +225,130 @@ pub(super) fn home(app: &mut WordApp, ui: &mut Ui) {
                 mi(ui, app, "Select All", "select.all", json!({}));
                 mi(ui, app, "Select Paragraph", "select.paragraph", json!({}));
                 mi(ui, app, "Select Sentence", "select.sentence", json!({}));
+            });
+        });
+    });
+    group(ui, "Font", Some("format.fontDialog"), app, |ui, app| {
+        stack(ui, |ui| {
+            crate::widgets::row(ui, |ui| {
+                let font = st.get("font").and_then(Value::as_str).unwrap_or("").to_string();
+                let font = app.previews.font_shown(&font);
+                let fams = app.previews.families();
+                let recent: Vec<String> = app.ui.recent_fonts.iter().map(|f| app.previews.font_shown(f)).collect();
+                let prev = app.previews.font_preview_fn();
+                if let Some(f) = crate::widgets::font_combo_with_recent_hint(
+                    ui,
+                    crate::widgets::FontComboOptions {
+                        id: "font",
+                        width: 150.0,
+                        current: &font,
+                        items: &fams,
+                        recent: &recent,
+                        preview: Some(&*prev),
+                        tip: tl!("Font"),
+                    },
+                ) {
+                    let _ = if f == crate::widgets::ADD_FONT {
+                        app.run("font.add", json!({}))
+                    } else if f == crate::widgets::LOAD_SYSTEM_FONTS {
+                        app.run("font.loadSystem", json!({}))
+                    } else {
+                        let f = app.previews.font_stored(&f);
+                        app.run("format.font", json!({"name": f}))
+                    };
+                }
+                let size = st
+                    .get("size")
+                    .and_then(Value::as_f64)
+                    .map(|s| if s.fract() == 0.0 { format!("{s:.0}") } else { format!("{s}") })
+                    .unwrap_or_default();
+                let sizes: Vec<String> =
+                    wordcraft_engine::cmd::format::SIZES.iter().map(|s| if s.fract() == 0.0 { format!("{s:.0}") } else { s.to_string() }).collect();
+                if let Some(v) = crate::widgets::combo_hint(ui, "size", 52.0, &size, &sizes, None, tl!("Font Size"))
+                    && let Ok(x) = v.trim().parse::<f64>()
+                {
+                    let _ = app.run("format.size", json!({"size": x}));
+                }
+                ui.add_space(3.0);
+                small(ui, app, "grow", None, "Increase Font Size", crate::widgets::ButtonAction::new("format.growFont", json!({}), false));
+                small(ui, app, "shrink", None, "Decrease Font Size", crate::widgets::ButtonAction::new("format.shrinkFont", json!({}), false));
+                menu_button(ui, app, crate::widgets::MenuButtonOptions::new("case", None, "Change Case", false, "format.changeCase"), |ui, app| {
+                    mi(ui, app, "Sentence case.", "format.changeCase", json!({"mode": "sentence"}));
+                    mi(ui, app, "lowercase", "format.changeCase", json!({"mode": "lower"}));
+                    mi(ui, app, "UPPERCASE", "format.changeCase", json!({"mode": "upper"}));
+                    mi(ui, app, "Capitalize Each Word", "format.changeCase", json!({"mode": "title"}));
+                    mi(ui, app, "tOGGLE cASE", "format.changeCase", json!({"mode": "toggle"}));
+                });
+                small(ui, app, "clear", None, "Clear All Formatting", crate::widgets::ButtonAction::new("format.clear", json!({}), false));
+                small(ui, app, "phonetic", None, "Phonetic Guide", crate::widgets::ButtonAction::new("format.phonetic", json!({}), false));
+            });
+            ui.add_space(3.0);
+            crate::widgets::row(ui, |ui| {
+                small(ui, app, "bold", None, "Bold", crate::widgets::ButtonAction::new("format.bold", json!({}), flag("bold")));
+                small(ui, app, "italic", None, "Italic", crate::widgets::ButtonAction::new("format.italic", json!({}), flag("italic")));
+                split(
+                    ui,
+                    app,
+                    "underline",
+                    "Underline",
+                    crate::widgets::ButtonAction::new("format.underline", json!({}), flag("underline")),
+                    None,
+                    underline_menu,
+                );
+                small(ui, app, "strike", None, "Strikethrough", crate::widgets::ButtonAction::new("format.strikethrough", json!({}), flag("strike")));
+                small(ui, app, "subscript", None, "Subscript", crate::widgets::ButtonAction::new("format.subscript", json!({}), flag("subscript")));
+                small(
+                    ui,
+                    app,
+                    "superscript",
+                    None,
+                    "Superscript",
+                    crate::widgets::ButtonAction::new("format.superscript", json!({}), flag("superscript")),
+                );
+                small(ui, app, "charborder", None, "Character Border", crate::widgets::ButtonAction::new("format.border", json!({}), flag("border")));
+                small(ui, app, "enclose", None, "Enclose Characters", crate::widgets::ButtonAction::new("format.enclose", json!({}), false));
+                ui.add_space(4.0);
+                menu_button(ui, app, crate::widgets::MenuButtonOptions::new("effects", None, "Text Effects and Typography", false, ""), |ui, app| {
+                    let theme = app.session.doc.settings.theme_colors.clone();
+                    crate::wordart_menus::style_gallery(ui, app, "format.textEffects");
+                    ui.separator();
+                    ui.menu_button(tl!("Text Fill"), |ui| crate::wordart_menus::fill_menu(ui, app, &theme));
+                    let outline = crate::wordart_menus::current_outline(app);
+                    ui.menu_button(tl!("Text Outline"), |ui| crate::wordart_menus::outline_menu(ui, app, &theme, outline));
+                    crate::wordart_menus::effects_menu(ui, app, &theme, false);
+                    ui.separator();
+                    mi(ui, app, "Outline", "format.outline", json!({}));
+                    mi(ui, app, "Shadow", "format.shadow", json!({}));
+                    mi(ui, app, "Small Caps", "format.smallCaps", json!({}));
+                    mi(ui, app, "All Caps", "format.allCaps", json!({}));
+                    mi(ui, app, "Double Strikethrough", "format.doubleStrikethrough", json!({}));
+                });
+                let hl = app.canvas.last_highlight.clone();
+                let (icon, sw, color) = crate::mini_toolbar::highlight_button_appearance(&hl);
+                split(
+                    ui,
+                    app,
+                    icon,
+                    "Text Highlight Color",
+                    crate::widgets::ButtonAction::new("format.highlight", json!({"color": color}), false),
+                    sw,
+                    crate::mini_toolbar::highlight_menu,
+                );
+                let fc = app.canvas.last_font_color.clone();
+                let sw = wordcraft_doc::Rgb::parse(&fc).map(crate::theme::c32);
+                split(
+                    ui,
+                    app,
+                    "fontcolor",
+                    "Font Color",
+                    crate::widgets::ButtonAction::new("format.color", json!({"color": fc}), false),
+                    sw,
+                    |ui, app| {
+                        mi(ui, app, "Automatic", "format.color", json!({"color": "auto"}));
+                        let theme = app.session.doc.settings.theme_colors.clone();
+                        crate::colors::menu(ui, app, &theme, Target::cmd("format.color").remember(Remember::FontColor));
+                    },
+                );
             });
         });
     });

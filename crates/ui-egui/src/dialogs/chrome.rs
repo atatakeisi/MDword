@@ -77,6 +77,8 @@ pub fn show(app: &mut WordApp, ctx: &egui::Context) {
     };
     let mut close = false;
     let title = match &d {
+        Dialog::MarkdownPreview { .. } => "Markdown preview",
+        Dialog::SanitizeMacro { .. } => "Security protection",
         Dialog::RenameDocument { .. } => "Rename Document",
         Dialog::Font { .. } => "Font",
         Dialog::Paragraph { .. } => "Paragraph",
@@ -135,7 +137,7 @@ pub fn show(app: &mut WordApp, ctx: &egui::Context) {
     let id = egui::Id::unique(("dialog", title));
     let window = crate::window_close::window(ctx, egui::Window::new(tl!(title)).id(id).collapsible(false).resizable(false));
     let shown = place_dialog(ctx, id, window).show(ctx, |ui| {
-        ui.set_min_width(340.0);
+        ui.set_min_width(if matches!(d, Dialog::MarkdownPreview { .. }) { 720.0 } else { 340.0 });
         close = body(app, ui, &mut d);
     });
     if let Some(shown) = &shown {

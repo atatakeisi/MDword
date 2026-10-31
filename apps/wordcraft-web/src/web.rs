@@ -64,7 +64,15 @@ pub fn start() {
                     let region = wordcraft_ui_egui::i18n::system_region();
                     // In host mode the parent sends the document to edit; no sample meanwhile.
                     let sample = app_bridge.is_none() && query().contains("sample");
-                    let doc = if sample { wordcraft_engine::sample::sample_document() } else { wordcraft_engine::blank_document(&region) };
+                    let japanese =
+                        query_param("lang").map_or_else(|| wordcraft_ui_egui::i18n::system_lang().code() == "ja", |lang| lang.starts_with("ja"));
+                    let doc = if sample && japanese {
+                        wordcraft_engine::sample::sample_document_ja()
+                    } else if sample {
+                        wordcraft_engine::sample::sample_document()
+                    } else {
+                        wordcraft_engine::blank_document(&region)
+                    };
                     let mut session = Session::new(doc);
                     session.system_region = region;
                     let messages = Rc::new(RefCell::new(Vec::new()));
@@ -79,6 +87,10 @@ pub fn start() {
                     // Preferences from an earlier visit (#2132), as the desktop app reads `ui.json`.
                     let stored = stored_prefs();
                     crate::prefs::restore(&mut app, stored.as_deref());
+                    app.ui.show_discord = false;
+                    if let Some(code) = query_param("lang").and_then(|lang| wordcraft_ui_egui::i18n::normalize_pref(&lang)) {
+                        let _ = app.run("ui.language", serde_json::json!({"value": code}));
+                    }
                     // A region chosen in File › Options replaces the browser's for the first blank
                     // document too (#838).
                     if !sample && app.session.prefs.region.is_some() {
@@ -542,7 +554,9 @@ async fn write_file_handle(handle: &wasm_bindgen::JsValue, bytes: &[u8]) -> Resu
         .map_err(js)?
         .dyn_into()
         .map_err(|_| "write is not a function".to_string())?;
-    let uint8 = js_sys::Uint8Array::from(bytes);
+    let len = u32::try_from(bytes.len()).map_err(|_| "file is too large to write".to_string())?;
+    let uint8 = js_sys::Uint8Array::new_with_length(len);
+    uint8.copy_from(bytes);
     let write_prom: js_sys::Promise = write_fn.call1(&stream, &uint8).map_err(js)?.dyn_into().map_err(|_| "not a promise".to_string())?;
     wasm_bindgen_futures::JsFuture::from(write_prom).await.map_err(js)?;
 

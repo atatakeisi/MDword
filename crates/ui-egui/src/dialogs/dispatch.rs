@@ -12,6 +12,26 @@ use super::{Dialog, MeasureExt, Tokens, Ui, Value, WordApp, json, semibold, vec2
 /// Returns true to close.
 pub(super) fn body(app: &mut WordApp, ui: &mut Ui, d: &mut Dialog) -> bool {
     match d {
+        Dialog::MarkdownPreview { tab, text, flow } => crate::markdown_preview::show(app, ui, tab, text, flow),
+        Dialog::SanitizeMacro { name, command, params } => {
+            ui.label(crate::i18n::fmt(tl!("{name} contains macros."), &[("name", name)]));
+            ui.label(tl!("Remove macros and embedded objects before opening?"));
+            let (ok, cancel) = buttons(ui, tl!("Remove and open"));
+            if ok {
+                let mut p = params.clone();
+                if let Some(o) = p.as_object_mut() {
+                    o.insert("sanitize".into(), json!(true));
+                }
+                match app.execute(command, p) {
+                    Ok(_) => {
+                        app.status(tl!("Macros and embedded objects were removed. Save as a new .docx file."));
+                        return true;
+                    }
+                    Err(e) => app.status(e),
+                }
+            }
+            cancel
+        }
         Dialog::RenameDocument { .. } => rename_document_dialog(app, ui, d),
         Dialog::Font { .. } => font_dialog(app, ui, d),
         Dialog::Paragraph { .. } => paragraph_dialog(app, ui, d),
@@ -1231,7 +1251,7 @@ fn password_dialog(app: &mut WordApp, ui: &mut Ui, d: &mut Dialog) -> bool {
             o.insert("password".into(), json!(password.as_str()));
         }
         // `execute`, not `run`: Save Changes was asked when the open began.
-        match app.execute("file.open", p) {
+        match app.execute_user("file.open", p) {
             Ok(_) => {
                 app.ui.backstage = false;
                 return true;

@@ -583,6 +583,19 @@ pub fn font_definitions_language(prefer_hans: bool, prefer_korean: bool, prefer_
         // The same static bytes the document fonts use: one copy in the binary.
         add_cjk(&mut fonts, format!("{} {}", f.family, f.style), FontData::from_static(f.bytes));
     }
+    if !prefer_hans
+        && !prefer_korean
+        && let Some(f) = wordcraft_fonts::japanese_ui_fonts(true).first()
+        && f.family == "BIZ UDPGothic"
+        && f.style == "Bold"
+    {
+        let name = format!("{} {}", f.family, f.style);
+        fonts.font_data.insert(name.clone(), Arc::new(FontData::from_static(f.bytes)));
+        if let Some(v) = fonts.families.get_mut(&FontFamily::Name("semibold".into())) {
+            let pos = v.iter().position(|n| n == "BIZ UDPGothic Regular").unwrap_or(v.len());
+            v.insert(pos, name);
+        }
+    }
     // Georgian has no glyphs in Inter, Source Sans or the CJK faces: the craft-fonts Geor face.
     for f in wordcraft_fonts::georgian_fonts() {
         add_cjk(&mut fonts, format!("{} {}", f.family, f.style), FontData::from_static(f.bytes));

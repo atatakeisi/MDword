@@ -120,9 +120,16 @@ pub fn specs() -> Vec<CommandSpec> {
         .pure(),
         CommandSpec::new("file.newFromTemplate", "New from Template", "File › New", |s, v| {
             let path = p::req_str(v, "path")?;
-            let mut doc = crate::io::open_path(std::path::Path::new(path)).map_err(CmdError::Failed)?;
+            let (mut doc, _) = crate::io::open_path_in(std::path::Path::new(path), None, &s.region()).map_err(CmdError::Failed)?;
+            let sanitize = p::bool(v, "sanitize") == Some(true);
+            if crate::io::requires_macro_sanitization(path, &doc) && !sanitize {
+                return Err(CmdError::Failed("macro sanitization approval required".into()));
+            }
+            if sanitize {
+                wordcraft_docx::strip_active_content(&mut doc);
+            }
             // As in Word, the new document is attached to the template it came from (#2852).
-            doc.settings.attached_template = Some(path.to_string());
+            doc.settings.attached_template = if sanitize { None } else { Some(path.to_string()) };
             s.add_document(doc);
             s.dirty = true;
             sel_result(s)
@@ -131,8 +138,18 @@ pub fn specs() -> Vec<CommandSpec> {
         .pure(),
         CommandSpec::new("file.saveTemplate", "Save as Template", "File › Save As", |s, v| {
             let path = p::req_str(v, "path")?;
-            // A .dotm keeps its name (#2852); anything else becomes a .dotx.
-            let path = if crate::cmd::user_templates::is_template_name(path) { path.to_string() } else { format!("{path}.dotx") };
+            let path = if path.to_ascii_lowercase().ends_with(".dotm") {
+                let mut safe = std::path::PathBuf::from(path);
+                safe.set_extension("docx");
+                if safe.exists() {
+                    return Err(CmdError::Failed(format!("{} already exists; choose a different save path", safe.display())));
+                }
+                safe.to_string_lossy().into_owned()
+            } else if crate::cmd::user_templates::is_template_name(path) {
+                path.to_string()
+            } else {
+                format!("{path}.dotx")
+            };
             crate::io::save_path(std::path::Path::new(&path), &s.doc).map_err(CmdError::Failed)?;
             Ok(json!({"path": path}))
         })

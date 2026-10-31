@@ -15,6 +15,7 @@ mod flat;
 mod fonts;
 mod package;
 mod read;
+mod sanitize;
 mod smart_art;
 #[cfg(test)]
 mod test_log;
@@ -32,7 +33,9 @@ pub use crypt::{
 };
 pub use flat::{XmlKind, sniff_xml, write as write_flat};
 pub use fonts::{EmbeddedFont, embedded_fonts};
+pub use package::{VBA_PROJECT_PART, VBA_RELATED};
 pub use read::read;
+pub use sanitize::strip_active_content;
 pub use smart_art::smart_art_items;
 pub use wordml2003_write::write as write_wordml2003;
 pub use write::{write, write_as};

@@ -345,6 +345,55 @@ pub fn t(s: &str) -> &str {
     tr(current(), s)
 }
 
+fn ja_override(context: &str, s: &str) -> Option<&'static str> {
+    match (context, s) {
+        ("", "Normal") => Some("標準"),
+        ("", "No Spacing") => Some("行間なし"),
+        ("", "Subtitle") => Some("副題"),
+        ("", "Title") => Some("表題"),
+        ("", "Subtle Emphasis") => Some("斜体 (弱)"),
+        ("", "Emphasis") => Some("斜体"),
+        ("", "Intense Emphasis") => Some("斜体 (強)"),
+        ("", "Strong") => Some("太字"),
+        ("", "Quote") => Some("引用"),
+        ("", "Intense Quote") => Some("引用 (強調)"),
+        ("", "Subtle Reference") => Some("参照 (弱)"),
+        ("", "Intense Reference") => Some("参照 (強)"),
+        ("", "AI / Export") => Some("AI / 変換"),
+        ("", "Markdown\nPreview") => Some("Markdown\n参照\u{30fb}出力"),
+        ("", "Copy\nMarkdown") => Some("ワンクリック\nMDコピー"),
+        ("", "Export\nText") => Some("テキスト\n出力"),
+        ("", "Markdown preview") => Some("Markdown プレビュー"),
+        ("", "Markdown preview for sharing") => Some("Markdown プレビュー（送信\u{30fb}コピー参照）"),
+        ("", "Formatted view") => Some("整形表示（ブラウザ\u{30fb}Notion風）"),
+        ("", "Plain Markdown text") => Some("生テキスト（メール\u{30fb}メモ帳風）"),
+        ("", "Copy to clipboard") => Some("クリップボードにコピー"),
+        ("", "Save as Markdown (.md)") => Some(".mdファイルとして保存"),
+        ("", "Export Markdown") => Some("Markdown出力"),
+        ("", "Copy Markdown") => Some("MDコピー"),
+        ("", "Export Text") => Some("テキスト保存"),
+        ("", "Copied Markdown to the clipboard.") => Some("Markdownをクリップボードにコピーしました（AIチャット等にそのまま貼り付け可能です）"),
+        ("", "Security protection") => Some("セキュリティ保護"),
+        ("", "{name} contains macros.") => Some("{name} にはマクロが含まれています\u{3002}"),
+        ("", "Remove macros and embedded objects before opening?") => Some("マクロと埋め込みオブジェクトを削除して開きますか？"),
+        ("", "Remove and open") => Some("無害化して開く"),
+        ("", "Macros and embedded objects were removed. Save as a new .docx file.") => {
+            Some("マクロと埋め込みオブジェクトを削除しました\u{3002}新しい .docx ファイルとして保存してください\u{3002}")
+        }
+        ("", "Book Title") => Some("書籍のタイトル"),
+        ("", "List Paragraph") => Some("リスト段落"),
+        ("" | "template", "Studio handbook (sample)") => Some("日本語サンプル文書"),
+        ("" | "template", "Blank document") => Some("白紙の文書"),
+        ("" | "template", "Résumé") => Some("履歴書"),
+        ("" | "template", "Letter") => Some("ビジネス文書 (手紙)"),
+        ("" | "template", "Report") => Some("レポート"),
+        ("", "Immersive") => Some("閲覧サポート"),
+        ("", "Editor") => Some("文書校正"),
+        ("", "Dictate") => Some("音声入力"),
+        _ => None,
+    }
+}
+
 /// `s` in the current language as worded for `context` (`preview`, `template`), falling back to
 /// the plain translation and then to English.
 pub fn tc<'a>(context: &str, s: &'a str) -> &'a str {
@@ -356,6 +405,11 @@ pub fn trc<'a>(lang: Lang, context: &str, s: &'a str) -> &'a str {
     #[cfg(test)]
     if pseudo::on() {
         return I18N.tc(craft_i18n::Lang::PSEUDO, context, s);
+    }
+    if lang.code() == "ja"
+        && let Some(value) = ja_override(context, s)
+    {
+        return value;
     }
     lang.i18n().tc(lang.lang, context, s)
 }
@@ -369,6 +423,11 @@ pub fn get<'a>(context: &str, s: &'a str) -> Option<&'a str> {
         return I18N.get(craft_i18n::Lang::PSEUDO, context, s);
     }
     let lang = current();
+    if lang.code() == "ja"
+        && let Some(value) = ja_override(context, s)
+    {
+        return Some(value);
+    }
     lang.i18n().get(lang.lang, context, s)
 }
 
@@ -396,6 +455,11 @@ pub fn tr(lang: Lang, s: &str) -> &str {
     #[cfg(test)]
     if pseudo::on() {
         return I18N.t(craft_i18n::Lang::PSEUDO, s);
+    }
+    if lang.code() == "ja"
+        && let Some(value) = ja_override("", s)
+    {
+        return value;
     }
     lang.i18n().t(lang.lang, s)
 }

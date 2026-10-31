@@ -232,7 +232,12 @@ mod tests {
         let mut s = Session::new(wordcraft_doc::Document::new());
         s.run("document.setText", &json!({"text": text})).unwrap();
         s.doc.core.title = title.into();
-        crate::io::save_path(path, &s.doc).unwrap();
+        let flavor = if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("dotm")) {
+            wordcraft_docx::Flavor::MacroTemplate
+        } else {
+            wordcraft_docx::Flavor::Template
+        };
+        std::fs::write(path, wordcraft_docx::write_as(&s.doc, flavor).unwrap()).unwrap();
     }
 
     fn labels(r: &Value) -> Vec<(String, String)> {
@@ -375,12 +380,12 @@ mod tests {
         let _ = std::fs::remove_dir_all(&d);
     }
 
-    /// Save as Template keeps a .dotm (any case) and makes anything else a .dotx.
+    /// Save as Template changes a .dotm to .docx and makes other non-template names .dotx.
     #[test]
     fn save_template_keeps_a_template_extension() {
         let d = scratch("save");
         let mut s = Session::new(wordcraft_doc::Document::new());
-        for (asked, saved) in [("A.dotm", "A.dotm"), ("B.DOTX", "B.DOTX"), ("C", "C.dotx"), ("D.docx", "D.docx.dotx")] {
+        for (asked, saved) in [("A.dotm", "A.docx"), ("B.DOTX", "B.DOTX"), ("C", "C.dotx"), ("D.docx", "D.docx.dotx")] {
             let r = s.run("file.saveTemplate", &json!({"path": d.join(asked).to_string_lossy()})).unwrap();
             assert_eq!(r["path"], json!(d.join(saved).to_string_lossy()));
             assert!(d.join(saved).is_file(), "{saved}");

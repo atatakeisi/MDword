@@ -53,6 +53,7 @@ pub mod ink;
 pub mod keys;
 pub mod keytips;
 mod local_time;
+mod markdown_preview;
 pub mod mini_toolbar;
 pub mod objects;
 pub mod options;
@@ -324,7 +325,7 @@ impl Default for UiState {
             pane_places: Default::default(),
             pane_order: Vec::new(),
             nav_collapsed: Default::default(),
-            show_discord: true,
+            show_discord: false,
             author: None,
             window: None,
             language: i18n::AUTO.into(),

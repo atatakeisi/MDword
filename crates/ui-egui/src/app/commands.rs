@@ -116,6 +116,27 @@ impl WordApp {
         if let Some(error) = self.document_required_error(id) {
             return Err(error);
         }
+        if id == "ui.copyMarkdown" {
+            let ctx = self.ctx.clone().ok_or("clipboard is unavailable")?;
+            let opts = wordcraft_engine::cmd::file::export_options(&self.session, &json!({}));
+            let bytes = wordcraft_engine::io::save_bytes_opts("document.md", &self.session.doc, &opts)?;
+            let markdown = String::from_utf8(bytes).map_err(|e| e.to_string())?;
+            ctx.copy_text(markdown);
+            self.status(tl!("Copied Markdown to the clipboard."));
+            return Ok(json!({"copied": true}));
+        }
+        if id == "ui.markdownPreview" {
+            let opts = wordcraft_engine::cmd::file::export_options(&self.session, &json!({}));
+            let bytes = wordcraft_engine::io::save_bytes_opts("document.md", &self.session.doc, &opts)?;
+            let text = String::from_utf8(bytes).map_err(|e| e.to_string())?;
+            let flow = wordcraft_formats::markdown::parse(&text);
+            self.dialog = Some(dialogs::Dialog::MarkdownPreview { tab: 0, text, flow });
+            return Ok(json!({"pending": "markdownPreview"}));
+        }
+        if id == "ui.exportText" {
+            self.export_dialog("txt");
+            return Ok(json!({"pending": "export"}));
+        }
         if let Some(r) = self.ui_command(id, &params) {
             return r;
         }
@@ -138,7 +159,14 @@ impl WordApp {
         // Web: saving and exporting become downloads.
         if self.services.download.is_some() && matches!(id, "file.save" | "file.saveAs" | "file.exportPdf" | "file.exportPng") {
             let name = params.get("path").and_then(Value::as_str).map(str::to_string).unwrap_or_else(|| self.web_save_name(id));
-            let name = if id == "file.exportPdf" && !name.ends_with(".pdf") { format!("{name}.pdf") } else { name };
+            let mut name = if id == "file.exportPdf" && !name.ends_with(".pdf") { format!("{name}.pdf") } else { name };
+            if matches!(id, "file.save" | "file.saveAs") {
+                let mut path = std::path::PathBuf::from(&name);
+                if path.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("docm") || e.eq_ignore_ascii_case("dotm")) {
+                    path.set_extension("docx");
+                    name = path.to_string_lossy().into_owned();
+                }
+            }
             // A save with a password encrypts this and later saves (`file.save`'s `password`).
             if matches!(id, "file.save" | "file.saveAs")
                 && let Some(pw) = params.get("password").filter(|v| !v.is_null())
@@ -315,9 +343,17 @@ impl WordApp {
                 file_dialogs::Asked::Busy => Ok(json!({"saved": false})),
             };
         }
-        let retry = (id == "file.open").then(|| params.clone());
+        let retry = matches!(id, "file.open" | "file.newFromTemplate").then(|| params.clone());
         let retry_path = retry.clone();
         let r = self.execute(id, params);
+        if let (Err(e), Some(params)) = (&r, retry.clone())
+            && e.contains("macro sanitization approval required")
+        {
+            let path = params.get("path").and_then(Value::as_str).unwrap_or("");
+            let name = std::path::Path::new(path).file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| path.to_string());
+            self.dialog = Some(dialogs::Dialog::SanitizeMacro { name, command: id.to_string(), params });
+            return Ok(json!({"pending": "sanitizeMacro"}));
+        }
         if let (Err(e), Some(params)) = (&r, retry)
             && wordcraft_engine::io::needs_password(e)
         {

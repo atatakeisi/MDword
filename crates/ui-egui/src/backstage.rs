@@ -125,6 +125,9 @@ pub fn show(app: &mut WordApp, ui: &mut Ui) {
             }
             ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
                 for (label, id) in [("About", "about"), ("Discord community", "discord")] {
+                    if id == "discord" && !app.ui.show_discord {
+                        continue;
+                    }
                     let (r, resp) = ui.allocate_exact_size(vec2(200.0, 32.0), Sense::click());
                     resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), tl!(label)));
                     if resp.hovered() {
@@ -227,6 +230,7 @@ fn heading(ui: &mut Ui, s: &str) {
 /// Draws a template thumbnail and caption as one accessible button, lazily renders and caches a
 /// region-aware page preview, and creates a document from the template on click.
 fn template_tile(ui: &mut Ui, app: &mut WordApp, label: &str, template: &str) {
+    let template = if template == "sample" && crate::i18n::current().code() == "ja" { "sample-ja" } else { template };
     let t = Tokens::get(ui.ctx());
     ui.vertical(|ui| {
         // The thumbnail and its caption are one button named by the caption, so a screen reader

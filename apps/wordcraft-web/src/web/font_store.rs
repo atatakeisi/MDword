@@ -9,6 +9,33 @@ use web_sys::{IdbDatabase, IdbRequest, IdbTransactionMode};
 
 const DB_NAME: &str = "wordcraft";
 const STORE: &str = "fonts";
+const EXTRA_FONTS: &[&str] = &[
+    "ShipporiMincho-Regular.ttf",
+    "ZenMaruGothic-Regular.ttf",
+    "MPLUSRounded1c-Regular.ttf",
+    "KleeOne-Regular.ttf",
+    "YujiSyuku-Regular.ttf",
+    "HachiMaruPop-Regular.ttf",
+    "SawarabiMincho-Regular.ttf",
+    "SawarabiGothic-Regular.ttf",
+    "ZenOldMincho-Regular.ttf",
+];
+
+async fn fetch_font(name: &str) -> Result<Vec<u8>, String> {
+    let window = web_sys::window().ok_or("no window")?;
+    let response = wasm_bindgen_futures::JsFuture::from(window.fetch_with_str(&format!("./fonts/{name}"))).await.map_err(js)?;
+    if js_sys::Reflect::get(&response, &"ok".into()).map_err(js)?.as_bool() != Some(true) {
+        return Err(format!("fetch failed: {name}"));
+    }
+    let method: js_sys::Function = js_sys::Reflect::get(&response, &"arrayBuffer".into()).map_err(js)?.dyn_into().map_err(js)?;
+    let promise: js_sys::Promise = method.call0(&response).map_err(js)?.dyn_into().map_err(js)?;
+    let data = wasm_bindgen_futures::JsFuture::from(promise).await.map_err(js)?;
+    let bytes = js_sys::Uint8Array::new(&data);
+    if bytes.length() as usize > wordcraft_fonts::MAX_FONT_FILE_BYTES {
+        return Err(format!("font too large: {name}"));
+    }
+    Ok(bytes.to_vec())
+}
 
 fn js(e: JsValue) -> String {
     format!("{e:?}")
@@ -88,6 +115,7 @@ pub fn forget(name: &str) {
 /// logged and skipped), then repaint: the app lays out again when fonts change.
 pub fn load_all(ctx: egui::Context) {
     wasm_bindgen_futures::spawn_local(async move {
+        let mut loaded = std::collections::HashSet::new();
         let r: Result<(), String> = async {
             let db = open().await?;
             let store = db.transaction_with_str(STORE).map_err(js)?.object_store(STORE).map_err(js)?;
@@ -101,8 +129,11 @@ pub fn load_all(ctx: egui::Context) {
                     log::warn!("stored font {name} is too large; skipped");
                     continue;
                 }
-                if let Err(e) = wordcraft_fonts::FontDb::global().install_font(&name, &bytes.to_vec()) {
-                    log::warn!("stored font {name} skipped: {e}");
+                match wordcraft_fonts::FontDb::global().install_font(&name, &bytes.to_vec()) {
+                    Ok(_) | Err(wordcraft_fonts::UserFontError::AlreadyAvailable(_)) => {
+                        loaded.insert(name);
+                    }
+                    Err(e) => log::warn!("stored font {name} skipped: {e}"),
                 }
             }
             Ok(())
@@ -112,5 +143,22 @@ pub fn load_all(ctx: egui::Context) {
             log::warn!("no stored fonts: {e}");
         }
         ctx.request_repaint();
+        for &name in EXTRA_FONTS {
+            if loaded.contains(name) {
+                continue;
+            }
+            match fetch_font(name).await {
+                Ok(bytes) => match wordcraft_fonts::FontDb::global().install_font(name, &bytes) {
+                    Ok(_) => {
+                        ctx.request_repaint();
+                        if let Err(e) = store_async(name.to_owned(), bytes).await {
+                            log::warn!("couldn't cache {name}: {e}");
+                        }
+                    }
+                    Err(e) => log::warn!("font {name} skipped: {e}"),
+                },
+                Err(e) => log::warn!("couldn't fetch {name}: {e}"),
+            }
+        }
     });
 }

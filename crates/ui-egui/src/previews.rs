@@ -408,6 +408,15 @@ pub fn font_entry_image(name: &str, ppp: f32) -> egui::ColorImage {
     let face = db
         .preview_face(name)
         .filter(|f| name.chars().filter(|c| !c.is_whitespace()).all(|c| f.covers(c)))
+        .or_else(|| {
+            if !name.is_ascii() {
+                ["BIZ UDPGothic", "Shippori Mincho", "Sawarabi Gothic", "Zen Maru Gothic"]
+                    .iter()
+                    .find_map(|&family| db.preview_face(family).filter(|f| name.chars().filter(|c| !c.is_whitespace()).all(|c| f.covers(c))))
+            } else {
+                None
+            }
+        })
         .unwrap_or_else(|| db.face(wordcraft_fonts::FALLBACK_FAMILY, "Regular"));
     let img = wordcraft_render::render_text_line(&face, name, 13.0, 244.0, 22.0, 2.0, ppp);
     egui::ColorImage::from_rgba_unmultiplied([img.width as usize, img.height as usize], &img.to_straight())
@@ -526,12 +535,14 @@ pub fn style_gallery(app: &mut WordApp, ui: &mut Ui, state: &Value) {
     let start_id = app.window_id("gallery_start");
     let start = ui.data(|d| d.get_temp::<usize>(start_id)).unwrap_or(0).min(styles.len().saturating_sub(1));
     // A compact ribbon group (#662, #1285) trims the gallery to fewer tiles before it folds.
-    let visible = if crate::ribbon_fit::compact(ui.ctx()) { STYLE_TILES_COMPACT } else { STYLE_TILES };
-    crate::ribbon_fit::add_saving(ui.ctx(), (STYLE_TILES - STYLE_TILES_COMPACT) as f32 * 76.0);
-    let (area, _) = ui.allocate_exact_size(vec2(visible as f32 * 76.0 + 18.0, crate::widgets::CONTENT_H), Sense::hover());
+    let compact = crate::ribbon_fit::compact(ui.ctx());
+    let visible = if compact { STYLE_TILES_COMPACT } else { STYLE_TILES };
+    let tile_width = if compact { 60.0 } else { 76.0 };
+    crate::ribbon_fit::add_saving(ui.ctx(), STYLE_TILES as f32 * 76.0 - STYLE_TILES_COMPACT as f32 * 60.0);
+    let (area, _) = ui.allocate_exact_size(vec2(visible as f32 * tile_width + 18.0, crate::widgets::CONTENT_H), Sense::hover());
     ui.painter().rect(area.shrink(1.0), 4.0, t.input, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
     for (k, (id, name)) in styles.iter().skip(start).take(visible).enumerate() {
-        let r = Rect::from_min_size(pos2(area.min.x + 3.0 + k as f32 * 76.0, area.min.y + 3.0), vec2(74.0, area.height() - 6.0));
+        let r = Rect::from_min_size(pos2(area.min.x + 3.0 + k as f32 * tile_width, area.min.y + 3.0), vec2(tile_width - 2.0, area.height() - 6.0));
         let resp = ui.interact(r, ui.scope_id().with(("style_tile", id)), Sense::click());
         let active = *id == current;
         resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, true, active, name));

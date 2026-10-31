@@ -28,7 +28,7 @@ pub const OPEN_EXTS: &[&str] = &[
     "json",
 ];
 /// Formats WordCraft saves (Save As).
-pub const SAVE_EXTS: &[&str] = &["docx", "docm", "dotx", "dotm", "pdf", "txt", "md", "html", "rtf", "odt", "tex", "png", "json", "xml"];
+pub const SAVE_EXTS: &[&str] = &["docx", "dotx", "pdf", "txt", "md", "html", "rtf", "odt", "tex", "png", "json", "xml"];
 
 /// Magic number for ZIP package signatures (used by .docx/.docm/.dotx/.dotm).
 const ZIP_SIG: &[u8] = b"PK\x03\x04";
@@ -142,7 +142,16 @@ fn opened(doc: &mut Document) {
 
 /// Parse a document from bytes; `name` gives the format by extension.
 pub fn open_bytes(name: &str, bytes: &[u8]) -> Result<Document, String> {
-    open_bytes_with(name, bytes, None).map(|(doc, _)| doc)
+    let (doc, _) = open_bytes_with(name, bytes, None)?;
+    if requires_macro_sanitization(name, &doc) {
+        return Err("macro sanitization approval required".into());
+    }
+    Ok(doc)
+}
+
+/// Whether opening a document requires the user to approve removal of active content.
+pub fn requires_macro_sanitization(name: &str, doc: &Document) -> bool {
+    matches!(ext_of(name).as_str(), "docm" | "dotm") || doc.passthrough.contains_key(wordcraft_docx::VBA_PROJECT_PART)
 }
 
 /// Open a Word 97-2003 binary file, decrypting it with `password` when it is password-protected
@@ -181,7 +190,9 @@ pub fn region_page(region: &wordcraft_geom::Region) -> wordcraft_doc::SectionPro
 pub fn open_bytes_in(name: &str, bytes: &[u8], password: Option<&str>, region: &wordcraft_geom::Region) -> Result<(Document, bool), String> {
     let page = region_page(region);
     let (doc, encrypted) = read_bytes(name, bytes, password, &page)?;
-    load_embedded_fonts(&doc);
+    if !matches!(ext_of(name).as_str(), "docm" | "dotm") && !doc.passthrough.contains_key(wordcraft_docx::VBA_PROJECT_PART) {
+        load_embedded_fonts(&doc);
+    }
     Ok((doc, encrypted))
 }
 
@@ -379,6 +390,7 @@ pub fn save_bytes(name: &str, doc: &Document) -> Result<Vec<u8>, String> {
 pub fn save_bytes_opts(name: &str, doc: &Document, opts: &ExportOptions) -> Result<Vec<u8>, String> {
     let ext = ext_of(name);
     match ext.as_str() {
+        "docm" | "dotm" => Err("macro-enabled output is not supported; save as .docx".into()),
         // List paragraphs get their label and a tab, as in Word's plain-text save.
         "txt" | "text" => {
             let bytes = wordcraft_formats::txt::export(doc);
@@ -403,7 +415,11 @@ pub fn save_bytes_with(name: &str, doc: &Document, password: Option<&str>, opts:
 }
 
 pub fn open_path(path: &std::path::Path) -> Result<Document, String> {
-    open_path_with(path, None).map(|(doc, _)| doc)
+    let (doc, _) = open_path_with(path, None)?;
+    if requires_macro_sanitization(&path.to_string_lossy(), &doc) {
+        return Err("macro sanitization approval required".into());
+    }
+    Ok(doc)
 }
 
 /// [`open_path`] for a file that may be password-protected (see [`open_bytes_with`]).

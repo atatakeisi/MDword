@@ -353,6 +353,8 @@ pub(crate) const EXPORT_WORD_2003: &str = "wordml2003";
 /// The "save a copy" formats (File › Export, and below the settings on the Print page).
 pub fn export_formats(app: &mut WordApp, ui: &mut Ui) {
     for (label, ext) in [
+        ("Markdown (*.md)", "md"),
+        ("Plain text (*.txt)", "txt"),
         ("PDF document (*.pdf)", "pdf"),
         ("Word document (*.docx)", "docx"),
         ("Word XML Document (*.xml)", "xml"),
@@ -360,12 +362,16 @@ pub fn export_formats(app: &mut WordApp, ui: &mut Ui) {
         ("OpenDocument Text (*.odt)", "odt"),
         ("Rich Text Format (*.rtf)", "rtf"),
         ("Web page (*.html)", "html"),
-        ("Markdown (*.md)", "md"),
         ("LaTeX (*.tex)", "tex"),
-        ("Plain text (*.txt)", "txt"),
         ("Page image (*.png)", "png"),
     ] {
-        if ui.add(egui::Button::new(egui::RichText::new(tl!(label)).font(medium(13.5))).min_size(vec2(320.0, 34.0))).clicked() {
+        let t = crate::theme::Tokens::get(ui.ctx());
+        let featured = matches!(ext, "md" | "txt");
+        let text = egui::RichText::new(tl!(label)).font(medium(13.5));
+        let text = if featured { text.color(t.on_accent) } else { text };
+        let button = egui::Button::new(text).min_size(vec2(320.0, 34.0));
+        let button = if featured { button.fill(t.accent) } else { button };
+        if ui.add(button).clicked() {
             app.export_dialog(ext);
         }
         ui.add_space(4.0);

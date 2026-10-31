@@ -194,6 +194,12 @@ impl<'a> Exempt<'a> {
         // Math tiles fall back to UnicodeMath syntax while their preview loads. These are
         // language-independent commands, and only names in the real symbol table qualify.
         let math_symbol = plain.strip_prefix('\\').is_some_and(|name| wordcraft_doc::math_symbols::symbol(name).is_some());
+        // Markdown previews add list markers to document text; that text is still user content.
+        let list_body = plain
+            .strip_prefix("• ")
+            .or_else(|| plain.split_once(". ").and_then(|(n, body)| (!n.is_empty() && n.bytes().all(|b| b.is_ascii_digit())).then_some(body)));
+        let preview_body =
+            matches!(app.dialog, Some(crate::dialogs::Dialog::MarkdownPreview { .. })) && list_body.is_some_and(|body| self.body.contains(body));
         icon_lettering // drawn inside icons
             || initials // the account button
             || math_symbol
@@ -201,6 +207,7 @@ impl<'a> Exempt<'a> {
             || theme_fonts
             || is_shortcut()
             || self.body.contains(plain)
+            || preview_body
             || self.names.contains(plain)
             || self.math.contains(plain) // the Equation tab's `lim\below(n→∞)`-style placeholders
             || plain.starts_with('@') // contributor handles

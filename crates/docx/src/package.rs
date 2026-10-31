@@ -207,6 +207,12 @@ pub struct Package {
 }
 
 impl Package {
+    /// Detect VBA relationships anywhere in a package, including missing or empty targets.
+    pub(crate) fn has_vba_relationship(&self) -> bool {
+        self.files.iter().filter(|(name, _)| name.to_ascii_lowercase().ends_with(".rels")).any(|(_, bytes)| {
+            crate::xml::parse(bytes).map_or(true, |root| root.els().any(|el| el.attr("Type").is_some_and(|kind| rel_is(kind, rt::VBA_PROJECT))))
+        })
+    }
     pub fn open(bytes: &[u8]) -> Result<Package, DocxError> {
         Package::open_limited(bytes, MAX_PART, MAX_TOTAL)
     }

@@ -115,6 +115,10 @@ impl FontDb {
         if self.is_loaded(family) {
             return true;
         }
+        #[cfg(target_arch = "wasm32")]
+        if super::catalog::preset_targets(family).is_some() {
+            return true;
+        }
         #[cfg(not(target_arch = "wasm32"))]
         if self.read_catalog().iter().any(|c| {
             c.family.eq_ignore_ascii_case(family)
@@ -192,11 +196,25 @@ impl FontDb {
         }
         if cands.is_empty() {
             // Exact full names keep precedence over PostScript aliases; either selects one face.
-            return faces
+            let exact = faces
                 .iter()
                 .find(|f| f.full_name.as_ref().is_some_and(|n| n.eq_ignore_ascii_case(family)))
                 .or_else(|| faces.iter().find(|f| f.postscript.as_ref().is_some_and(|n| n.eq_ignore_ascii_case(family))))
                 .cloned();
+            #[cfg(target_arch = "wasm32")]
+            if exact.is_none() {
+                drop(faces);
+                // A real installed face keeps precedence over preset substitutes.
+                if let Some(en) = self.english_family(family).filter(|en| !en.eq_ignore_ascii_case(family))
+                    && self.is_loaded(&en)
+                {
+                    return self.find(&en, style);
+                }
+                if let Some(targets) = super::catalog::preset_targets(family) {
+                    return targets.iter().find_map(|target| self.find(target, style));
+                }
+            }
+            return exact;
         }
         let ns = norm(style);
         if let Some(f) = cands.iter().find(|f| norm(&f.style) == ns) {

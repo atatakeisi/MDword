@@ -1,6 +1,45 @@
 use super::*;
 use egui_kittest::kittest::Queryable;
 
+#[test]
+fn markdown_preview_uses_the_exported_text_and_parses_it() {
+    let mut app = app();
+    app.run("document.setText", json!({"text": "Hello Markdown"})).unwrap();
+    let expected = wordcraft_engine::io::save_bytes("document.md", &app.session.doc).unwrap();
+    app.run("ui.markdownPreview", json!({})).unwrap();
+    let Some(crate::dialogs::Dialog::MarkdownPreview { tab, text, flow }) = &app.dialog else { panic!("preview did not open") };
+    assert_eq!(*tab, 0);
+    assert_eq!(text.as_bytes(), expected);
+    assert!(!flow.blocks.is_empty());
+}
+
+#[test]
+fn markdown_preview_tabs_remain_clickable() {
+    let mut app = app();
+    app.run("document.setText", json!({"text": "Preview text"})).unwrap();
+    app.run("ui.markdownPreview", json!({})).unwrap();
+    let mut h = harness(app);
+    h.run_steps(5);
+    h.get_by_role_and_label(egui::accesskit::Role::Button, "Plain Markdown text").click();
+    h.run_steps(2);
+    assert!(matches!(&h.state().dialog, Some(crate::dialogs::Dialog::MarkdownPreview { tab: 1, .. })));
+    h.get_by_role_and_label(egui::accesskit::Role::Button, "Formatted view").click();
+    h.run_steps(2);
+    assert!(matches!(&h.state().dialog, Some(crate::dialogs::Dialog::MarkdownPreview { tab: 0, .. })));
+}
+
+#[test]
+fn macro_open_prompts_and_does_not_replace_document() {
+    let mut app = app();
+    let bytes = wordcraft_engine::io::save_bytes("sample.docx", &wordcraft_doc::Document::from_text("incoming")).unwrap();
+    let data = wordcraft_engine::cmd::insert::base64_encode(&bytes);
+    let original = app.session.doc.clone();
+    let result = app.run("file.open", json!({"path": "sample.docm", "data": data})).unwrap();
+    assert_eq!(result["pending"], "sanitizeMacro");
+    assert!(matches!(app.dialog, Some(crate::dialogs::Dialog::SanitizeMacro { .. })));
+    assert_eq!(app.session.doc, original);
+}
+
 mod perf;
 
 fn mod_key(key: egui::Key) -> egui::Event {
@@ -4362,8 +4401,7 @@ fn a_host_save_that_fails_leaves_the_document_unsaved() {
     assert!(a.session.dirty);
 }
 
-/// Macro-enabled documents and templates keep everything (#172), so once saved in this
-/// session AutoSave covers them like a .docx.
+/// Macro-enabled output names are converted to .docx before AutoSave is enabled.
 #[test]
 fn autosave_covers_macro_enabled_documents_and_templates() {
     for ext in ["docm", "dotx", "dotm"] {
@@ -4375,7 +4413,8 @@ fn autosave_covers_macro_enabled_documents_and_templates() {
         a.run("text.insert", json!({"text": "More "})).unwrap();
         a.autosave_tick(now_ms() + 10_000.0);
         assert!(!a.session.dirty, "{ext}: AutoSave wrote the file");
-        let saved = wordcraft_engine::io::open_path(&path).unwrap();
+        let saved_path = a.session.path.as_ref().unwrap();
+        let saved = wordcraft_engine::io::open_path(saved_path).unwrap();
         assert!(saved.plain_text(wordcraft_doc::StoryRef::Body).contains("More "), "{ext}");
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -4987,7 +5026,7 @@ fn autosave_failures_are_reported_once() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// Web Save of an opened .docm downloads a .docm, so its macros stay (Codex review, docm lane).
+/// Web Save converts macro-enabled names to .docx and drops the macros.
 #[test]
 fn web_save_keeps_the_opened_word_format() {
     let mut doc = wordcraft_doc::Document::new();
@@ -5007,7 +5046,7 @@ fn web_save_keeps_the_opened_word_format() {
     };
     let mut a = WordApp::new(Session::new(doc), services);
     for (opened, expect) in
-        [("m.docm", "m.docm"), ("t.DOTM", "t.DOTM"), ("t.dotx", "t.dotx"), ("notes.odt", "notes.docx"), ("readme.txt", "readme.docx")]
+        [("m.docm", "m.docx"), ("t.DOTM", "t.docx"), ("t.dotx", "t.dotx"), ("notes.odt", "notes.docx"), ("readme.txt", "readme.docx")]
     {
         a.session.path = Some(opened.into());
         a.run("file.save", json!({})).unwrap();

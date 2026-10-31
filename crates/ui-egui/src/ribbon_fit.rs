@@ -47,8 +47,10 @@ pub fn plan(groups: &[GroupWidths], avail: f32) -> Vec<u8> {
     };
     let mut levels = vec![FULL; groups.len()];
     let mut total: f32 = groups.iter().map(full).sum();
+    let mut shrink_order: Vec<usize> = (0..groups.len()).rev().filter(|&i| groups.get(i).is_some_and(|g| g.title != "AI / Export")).collect();
+    shrink_order.extend((0..groups.len()).rev().filter(|&i| groups.get(i).is_some_and(|g| g.title == "AI / Export")));
     for target in [COMPACT, COLLAPSED] {
-        for i in (0..groups.len()).rev() {
+        for &i in &shrink_order {
             if total <= avail {
                 break;
             }
@@ -256,6 +258,13 @@ mod tests {
     fn everything_full_when_it_fits() {
         let gs = [g("A", 100.0, Some(80.0), Some(60.0)), g("B", 100.0, Some(80.0), Some(60.0))];
         assert_eq!(plan(&gs, 200.0), vec![FULL, FULL]);
+    }
+
+    #[test]
+    fn export_buttons_stay_visible_when_other_groups_can_collapse() {
+        let gs = [g("Editing", 200.0, Some(180.0), Some(60.0)), g("AI / Export", 180.0, Some(180.0), Some(60.0))];
+        let result = plan(&gs, 250.0);
+        assert_eq!(result, vec![COLLAPSED, FULL]);
     }
 
     #[test]

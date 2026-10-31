@@ -137,6 +137,76 @@ pub fn sample_document() -> Document {
     d
 }
 
+/// A Japanese sample with the same kinds of document elements as the English showcase.
+pub fn sample_document_ja() -> Document {
+    let mut d = Document::new();
+    d.styles.default_chr.font = Some("Zen Maru Gothic".into());
+    d.core.title = "日本語ワープロ 活用ガイド".into();
+    d.core.creator = "WordCraft".into();
+    let mut b = vec![
+        Block::Para(styled("日本語ワープロ 活用ガイド", "Title")),
+        Block::Para(styled("見出し・スタイル・表・リストを使った文書作成サンプル", "Subtitle")),
+    ];
+    let mut intro = para("文書を読みやすく整えるには、内容に合わせて ");
+    add(&mut intro, "スタイル", bold());
+    add(&mut intro, " を使い分けることが大切です。", CharProps::default());
+    add(&mut intro, "重要な箇所", CharProps { color: Some(TextColor::Rgb(Rgb(0x15, 0x60, 0x82))), ..Default::default() });
+    add(&mut intro, "には色を付けることもできます。", CharProps::default());
+    b.push(Block::Para(intro));
+    b.push(Block::Para(styled("文書の構成", "Heading1")));
+    b.push(Block::Para(para("見出しを使うと、長い文書でも内容のまとまりを見つけやすくなります。")));
+    b.push(Block::Para(styled("伝えたいことを整理してから書き始めましょう。", "Quote")));
+    b.push(Block::Para(styled("書く前の準備", "Heading2")));
+    let bullets = d.numbering.add_list(ListKind::Bullet);
+    let steps = d.numbering.add_list(ListKind::Numbered);
+    for text in ["読み手と文書の目的を決める。", "必要な資料や情報を集める。", "伝える順番を考える。"] {
+        let mut p = para(text).styled("ListParagraph");
+        p.props.numbering = Some(NumRef { num: bullets, level: 0 });
+        b.push(Block::Para(p));
+    }
+    b.push(Block::Para(styled("作業の予定", "Heading2")));
+    let rows = [
+        ["作業", "担当", "期限", "状況"],
+        ["資料を集める", "田中", "月曜日", "完了"],
+        ["原稿を書く", "佐藤", "水曜日", "進行中"],
+        ["内容を確認する", "鈴木", "金曜日", "予定"],
+    ];
+    let mut table = Table::new(rows.len(), 4, 468.0);
+    table.props.style = Some("GridTable4AccentBlue".into());
+    for (r, row) in rows.iter().enumerate() {
+        for (c, text) in row.iter().enumerate() {
+            if let Some(cell) = table.rows.get_mut(r).and_then(|row| row.cells.get_mut(c)) {
+                cell.blocks = vec![para_block(para(text))];
+            }
+        }
+    }
+    if let Some(row) = table.rows.first_mut() {
+        row.props.header = true;
+    }
+    b.push(Block::Table(table));
+    b.push(Block::Para(styled("仕上げの手順", "Heading2")));
+    for text in ["見出しと段落の順番を確認する。", "表やリストの内容を見直す。", "保存してから読み手に共有する。"]
+    {
+        let mut p = para(text).styled("ListParagraph");
+        p.props.numbering = Some(NumRef { num: steps, level: 0 });
+        b.push(Block::Para(p));
+    }
+    d.body = b.into_iter().map(std::sync::Arc::new).collect();
+    let mut footer = Paragraph::new().styled("Footer");
+    footer.props.align = Some(Align::Center);
+    let _ = footer.insert_object(
+        0,
+        InlineObject::Field { instr: "PAGE".into(), result: "1".into(), locked: false, dirty: false, code: false, form: String::new() },
+        &CharProps::default(),
+    );
+    let fid = d.add_part(PartKind::Footer, vec![para_block(footer)]);
+    d.last_section.footers.default = Some(fid);
+    let hid = d.add_part(PartKind::Header, vec![para_block(styled("日本語ワープロ 活用ガイド", "Header"))]);
+    d.last_section.headers.default = Some(hid);
+    d.normalize_runs();
+    d
+}
+
 /// A block-style letter.
 pub fn letter() -> Document {
     let mut d = Document::new();
@@ -214,10 +284,24 @@ mod tests {
     #[test]
     fn samples_are_valid() {
         assert_eq!(sample_document().word_count(), 361);
-        for d in [sample_document(), letter(), resume(), report()] {
+        for d in [sample_document(), sample_document_ja(), letter(), resume(), report()] {
             assert!(d.word_count() > 5);
             let l = wordcraft_layout::layout(&d, &mut wordcraft_layout::LayoutCache::new(), &Default::default());
             assert!(!l.pages.is_empty());
         }
+    }
+
+    #[test]
+    fn japanese_sample_exports_markdown_text() {
+        let bytes = crate::io::save_bytes("sample.md", &sample_document_ja()).unwrap();
+        let text = String::from_utf8(bytes).unwrap();
+        assert!(text.contains("日本語ワープロ 活用ガイド"));
+        assert!(text.contains("文書を読みやすく整えるには"));
+        assert!(text.contains("資料を集める"));
+    }
+
+    #[test]
+    fn japanese_sample_uses_rounded_default_font() {
+        assert_eq!(sample_document_ja().styles.default_chr.font.as_deref(), Some("Zen Maru Gothic"));
     }
 }

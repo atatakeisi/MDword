@@ -308,6 +308,9 @@ pub(crate) fn read_opened(pkg: &Package) -> Result<Document, DocxError> {
         r.doc.passthrough.insert(VBA_PROJECT_PART.into(), b.clone());
         r.read_vba_related(&v);
     }
+    if pkg.has_vba_relationship() {
+        r.doc.passthrough.entry(VBA_PROJECT_PART.into()).or_insert_with(|| Arc::new(Vec::new()));
+    }
     r.read_glossary(&rels);
     r.keep_custom_xml(&root_rels, &rels);
     r.keep_unmodelled(&root, &root_rels, &rels);

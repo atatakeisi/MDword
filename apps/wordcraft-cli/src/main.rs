@@ -90,6 +90,9 @@ fn open(path: &Path, password: Option<&str>) -> Result<Session, String> {
     // paper, as in the app: A4 in Italy, Letter in the US (#1381).
     let region = system_region();
     let (doc, encrypted) = wordcraft_engine::io::open_path_in(path, password, &region)?;
+    if wordcraft_engine::io::requires_macro_sanitization(&path.to_string_lossy(), &doc) {
+        return Err("macro sanitization approval required; open the file in WordCraft to sanitize it".into());
+    }
     let mut s = session(doc);
     s.path = Some(path.into());
     if encrypted {
