@@ -184,6 +184,33 @@ pub(super) fn drawing_grid_step(spacing: f32, scale: f32) -> f32 {
 /// hovering over (#3931). The preview is laid out on a copy, so the document and its undo history
 /// change only when a square is clicked.
 pub(super) fn shown_layout(app: &mut WordApp) -> std::sync::Arc<DocLayout> {
+    if !app.canvas.ime_preedit.is_empty() && app.canvas.focused {
+        app.canvas.table_preview_layout = None;
+        let key = (
+            (
+                app.canvas.ime_preedit.clone(),
+                app.canvas.ime_preedit_range.clone(),
+                app.session.document_id(),
+                app.session.rev(),
+                app.session.sel.clone(),
+            ),
+            app.session.layout(),
+        );
+        if let Some((k, _, _, l)) = &app.canvas.ime_preview_layout
+            && k.0 == key.0
+            && std::sync::Arc::ptr_eq(&k.1, &key.1)
+        {
+            return l.clone();
+        }
+        if let Some((doc, sel, l)) =
+            app.session.preview_ime_layout(&app.canvas.ime_preedit, app.canvas.ime_preedit_range.as_ref())
+        {
+            app.canvas.ime_preview_layout = Some((key, doc, sel, l.clone()));
+            return l;
+        }
+    }
+    app.canvas.ime_preview_layout = None;
+
     let Some((rows, cols)) = app.canvas.table_preview.take() else {
         app.canvas.table_preview_layout = None;
         return app.session.layout();
@@ -212,12 +239,18 @@ pub(super) fn shown_layout(app: &mut WordApp) -> std::sync::Arc<DocLayout> {
 /// The document the pages of [`shown_layout`] are drawn from: the previewed copy while the page
 /// shows Insert › Table's preview, whose paragraph paths are the layout's (#3931).
 pub(crate) fn page_doc(app: &WordApp) -> &wordcraft_doc::Document {
+    if let Some((_, doc, _, _)) = &app.canvas.ime_preview_layout {
+        return doc;
+    }
     app.canvas.table_preview_layout.as_ref().map_or(&app.session.doc, |(_, doc, _, _)| doc)
 }
 
 /// The previewed copy's selection while the page shows Insert › Table's preview: the caret and
 /// selection are drawn from it, as the document's own name other places in the preview's layout.
 pub(crate) fn preview_sel(app: &WordApp) -> Option<&wordcraft_engine::Selection> {
+    if let Some((_, _, sel, _)) = &app.canvas.ime_preview_layout {
+        return Some(sel);
+    }
     app.canvas.table_preview_layout.as_ref().map(|(_, _, sel, _)| sel)
 }
 

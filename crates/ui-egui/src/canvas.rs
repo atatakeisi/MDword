@@ -276,7 +276,11 @@ pub struct CanvasState {
     /// document's own layout, which a view change replaces), so a still pointer doesn't lay the
     /// document out every frame. Set only while the page shows the preview.
     table_preview_layout: Option<(TablePreviewKey, wordcraft_doc::Document, wordcraft_engine::Selection, std::sync::Arc<DocLayout>)>,
+    /// The live inline IME composition preview layout and the temporary document copy.
+    pub(crate) ime_preview_layout: Option<(ImePreviewKey, wordcraft_doc::Document, wordcraft_engine::Selection, std::sync::Arc<DocLayout>)>,
 }
+
+pub(crate) type ImePreviewKey = ((String, Option<std::ops::Range<usize>>, u64, u64, wordcraft_engine::Selection), std::sync::Arc<DocLayout>);
 
 type TablePreviewKey = ((usize, usize, u64, u64, wordcraft_engine::Selection), std::sync::Arc<DocLayout>);
 
@@ -424,6 +428,7 @@ impl Default for CanvasState {
             drawn_ibeam: crate::ibeam::DRAWN,
             table_preview: None,
             table_preview_layout: None,
+            ime_preview_layout: None,
         }
     }
 }
@@ -1553,12 +1558,14 @@ pub fn show(app: &mut WordApp, ui: &mut Ui) {
                     ui.ctx().request_repaint();
                 }
                 let color = caret_color(app);
-                let g = painter.layout_no_wrap(app.canvas.ime_preedit.clone(), regular(c.height * scale * 0.8), Color32::PLACEHOLDER);
-                let at = preedit_cursor_chars(&app.canvas.ime_preedit, app.canvas.ime_preedit_range.as_ref());
-                ime_dx = g.pos_from_cursor(egui::text::CCursor::new(at)).min.x;
-                let r = Rect::from_min_size(pos2(x, y1 - g.size().y), g.size());
-                painter.galley(r.min, g, color);
-                painter.line_segment([pos2(r.min.x, r.max.y), pos2(r.max.x, r.max.y)], Stroke::new(1.0, color));
+                if app.canvas.ime_preview_layout.is_none() {
+                    let g = painter.layout_no_wrap(app.canvas.ime_preedit.clone(), regular(c.height * scale * 0.8), Color32::PLACEHOLDER);
+                    let at = preedit_cursor_chars(&app.canvas.ime_preedit, app.canvas.ime_preedit_range.as_ref());
+                    ime_dx = g.pos_from_cursor(egui::text::CCursor::new(at)).min.x;
+                    let r = Rect::from_min_size(pos2(x, y1 - g.size().y), g.size());
+                    painter.galley(r.min, g, color);
+                    painter.line_segment([pos2(r.min.x, r.max.y), pos2(r.max.x, r.max.y)], Stroke::new(1.0, color));
+                }
                 preedit_color = Some(color);
             }
             let x = x + ime_dx;

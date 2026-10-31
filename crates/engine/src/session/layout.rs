@@ -141,9 +141,64 @@ impl Session {
         copy.last_highlight = self.last_highlight;
         copy.system_region = self.system_region.clone();
         copy.editing_lang = self.editing_lang.clone();
+        copy.pending = self.pending.clone();
         // The copy shares the paragraph layouts, so only what the command changed is laid out.
         std::mem::swap(&mut copy.cache, &mut self.cache);
         let layout = copy.run(id, params).is_ok().then(|| {
+            let typing = typing.and_then(|t| {
+                let p = copy.doc.para_at(&at)?;
+                (t.end <= p.len()).then_some(wordcraft_layout::TypingWord { rev: p.rev, ..t })
+            });
+            copy.layout_with(typing)
+        });
+        std::mem::swap(&mut copy.cache, &mut self.cache);
+        layout.map(|l| (copy.doc, copy.sel, l))
+    }
+
+    /// A live preview of an in-progress IME pre-edit composition inserted at the caret:
+    /// the pre-edit is inserted with an underline into a copy of the document and laid out,
+    /// pushing following text to the right and breaking lines as needed. The original document,
+    /// history and selection are untouched.
+    pub fn preview_ime_layout(
+        &mut self,
+        text: &str,
+        active_range_chars: Option<&std::ops::Range<usize>>,
+    ) -> Option<(Document, Selection, Arc<DocLayout>)> {
+        if text.is_empty() || self.math.is_some() {
+            return None;
+        }
+        let insert_start = self.sel.ordered().0;
+        let at = insert_start.clone();
+        let typing = self.typing_word();
+        let mut copy = Session::with_registry(self.doc.clone(), self.registry.clone());
+        copy.sel = self.sel.clone();
+        copy.column = self.column.clone();
+        copy.widened = self.widened.clone();
+        copy.view = self.view.clone();
+        copy.prefs = self.prefs.clone();
+        copy.path = self.path.clone();
+        copy.file_name = self.file_name.clone();
+        copy.author = self.author.clone();
+        copy.last_highlight = self.last_highlight;
+        copy.system_region = self.system_region.clone();
+        copy.editing_lang = self.editing_lang.clone();
+        copy.pending = self.pending.clone();
+
+        let mut props = copy.typing_props();
+        props.underline = Some(wordcraft_doc::props::Underline::Single);
+        copy.pending = Some(props);
+
+        std::mem::swap(&mut copy.cache, &mut self.cache);
+        let layout = copy.run("text.insert", &serde_json::json!({"text": text, "raw": true})).is_ok().then(|| {
+            let total_chars = text.chars().count();
+            let cursor_chars = match active_range_chars {
+                Some(r) => r.end.min(total_chars),
+                None => total_chars,
+            };
+            let byte_offset: usize = text.chars().take(cursor_chars).map(|c| c.len_utf8()).sum();
+            let cursor_pos = wordcraft_doc::Pos { off: insert_start.off + byte_offset, ..insert_start };
+            copy.sel = Selection::caret(cursor_pos);
+
             let typing = typing.and_then(|t| {
                 let p = copy.doc.para_at(&at)?;
                 (t.end <= p.len()).then_some(wordcraft_layout::TypingWord { rev: p.rev, ..t })
