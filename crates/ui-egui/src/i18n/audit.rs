@@ -189,7 +189,7 @@ impl<'a> Exempt<'a> {
         let status = app.status_msg.iter().map(|(m, _)| m).chain(&app.read_aloud_error).any(|m| text.contains(m.as_str()));
         // A theme's fonts after its (translated) name: `Studio: Georgia / Georgia`.
         let theme_fonts = plain.strip_prefix(": ").is_some_and(|f| f.split(" / ").count() == 2);
-        let icon_lettering = matches!(plain, "Aa" | "ab" | "abc" | "ac" | "cd" | "ab-" | "fx" | "ABC");
+        let icon_lettering = matches!(plain, "Aa" | "ab" | "abc" | "ac" | "cd" | "ab-" | "fx" | "ABC" | "MD");
         let initials = plain.chars().count() == 2 && plain.chars().all(|c| c.is_ascii_uppercase());
         // Math tiles fall back to UnicodeMath syntax while their preview loads. These are
         // language-independent commands, and only names in the real symbol table qualify.

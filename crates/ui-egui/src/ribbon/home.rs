@@ -43,9 +43,30 @@ pub(super) fn home(app: &mut WordApp, ui: &mut Ui) {
         });
     });
     group(ui, "AI / Export", None, app, |ui, app| {
-        big(ui, app, "preview", "Markdown\nPreview", "ui.markdownPreview", json!({}), false);
-        big(ui, app, "copy", "Copy\nMarkdown", "ui.copyMarkdown", json!({}), false);
-        big(ui, app, "export", "Export\nText", "ui.exportText", json!({}), false);
+        crate::widgets::big_colored(
+            ui,
+            app,
+            "md_preview",
+            "Markdown\nPreview",
+            "ui.markdownPreview",
+            (egui::Color32::from_rgb(0x3b, 0x82, 0xf6), egui::Color32::from_rgb(0x60, 0xa5, 0xfa)),
+        );
+        crate::widgets::big_colored(
+            ui,
+            app,
+            "copy",
+            "Copy\nMarkdown",
+            "ui.copyMarkdown",
+            (egui::Color32::from_rgb(0x10, 0xb9, 0x81), egui::Color32::from_rgb(0x34, 0xd3, 0x99)),
+        );
+        crate::widgets::big_colored(
+            ui,
+            app,
+            "export",
+            "Export\nText",
+            "ui.exportText",
+            (egui::Color32::from_rgb(0xf5, 0x9e, 0x0b), egui::Color32::from_rgb(0xfb, 0xbf, 0x24)),
+        );
     });
     group(ui, "Styles", Some("styles.pane"), app, |ui, app| {
         crate::previews::style_gallery(app, ui, &st);

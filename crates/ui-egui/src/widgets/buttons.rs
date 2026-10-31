@@ -62,12 +62,17 @@ pub(crate) fn run_from_ribbon(app: &mut WordApp, id: &str, params: Value) {
 
 /// A large ribbon button: 32 px icon over a (possibly two-line) label.
 pub fn big(ui: &mut Ui, app: &mut WordApp, icon: &str, label: &str, id: &str, params: Value, menu: bool) -> Response {
-    big_button(ui, app, icon, label, id, params, BigState { menu, checked: false })
+    big_button(ui, app, icon, label, id, params, BigState { menu, checked: false, colors: None })
+}
+
+/// A large command button with its own icon colors and interaction highlight.
+pub fn big_colored(ui: &mut Ui, app: &mut WordApp, icon: &str, label: &str, id: &str, colors: (Color32, Color32)) -> Response {
+    big_button(ui, app, icon, label, id, Value::Object(Default::default()), BigState { menu: false, checked: false, colors: Some(colors) })
 }
 
 /// A large ribbon button for a mode that stays on (`checked` draws it pressed), run without params.
 pub fn big_toggle(ui: &mut Ui, app: &mut WordApp, icon: &str, label: &str, id: &str, checked: bool) -> Response {
-    big_button(ui, app, icon, label, id, Value::Object(Default::default()), BigState { menu: false, checked })
+    big_button(ui, app, icon, label, id, Value::Object(Default::default()), BigState { menu: false, checked, colors: None })
 }
 
 /// Size of the drop-down marker drawn after a label or beside a split button (#659: one marker,
@@ -93,10 +98,11 @@ pub fn label_line(ui: &Ui, cx: f32, y: f32, text: &str, font: egui::FontId, colo
 struct BigState {
     menu: bool,
     checked: bool,
+    colors: Option<(Color32, Color32)>,
 }
 
 fn big_button(ui: &mut Ui, app: &mut WordApp, icon: &str, label: &str, id: &str, params: Value, state: BigState) -> Response {
-    let BigState { menu, checked } = state;
+    let BigState { menu, checked, colors } = state;
     let label = tl!(label);
     let t = Tokens::get(ui.ctx());
     let galley_w =
@@ -105,9 +111,15 @@ fn big_button(ui: &mut Ui, app: &mut WordApp, icon: &str, label: &str, id: &str,
     let (r, resp) = ui.allocate_exact_size(vec2(w, CONTENT_H), Sense::click());
     keytip_badge(ui, r, id, &label.replace('\n', " "));
     let on = enabled(app, id);
-    bg(ui, r, &resp, checked, &t);
+    if let Some((color, _)) = colors.filter(|_| on && (resp.hovered() || resp.is_pointer_button_down_on())) {
+        let alpha = if resp.is_pointer_button_down_on() { 55 } else { 28 };
+        ui.painter().rect_filled(r, CornerRadius::same(4), Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), alpha));
+        ui.painter().rect_stroke(r.shrink(0.5), CornerRadius::same(4), Stroke::new(1.0, color), egui::StrokeKind::Inside);
+    } else {
+        bg(ui, r, &resp, checked, &t);
+    }
     let ic = Rect::from_center_size(pos2(r.center().x, r.min.y + BIG_ICON_Y), vec2(32.0, 32.0));
-    let (c, a) = if on { (t.icon, t.accent) } else { (t.text_disabled, t.text_disabled) };
+    let (c, a) = if on { colors.unwrap_or((t.icon, t.accent)) } else { (t.text_disabled, t.text_disabled) };
     icons::paint(ui.painter(), ic, icon, c, a);
     let mut y = r.min.y + BIG_LABEL_Y;
     let lines: Vec<&str> = label.split('\n').collect();

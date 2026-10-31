@@ -365,15 +365,64 @@ pub fn export_formats(app: &mut WordApp, ui: &mut Ui) {
         ("LaTeX (*.tex)", "tex"),
         ("Page image (*.png)", "png"),
     ] {
-        let t = crate::theme::Tokens::get(ui.ctx());
-        let featured = matches!(ext, "md" | "txt");
-        let text = egui::RichText::new(tl!(label)).font(medium(13.5));
-        let text = if featured { text.color(t.on_accent) } else { text };
-        let button = egui::Button::new(text).min_size(vec2(320.0, 34.0));
-        let button = if featured { button.fill(t.accent) } else { button };
-        if ui.add(button).clicked() {
+        let clicked = if matches!(ext, "md" | "txt") {
+            featured_export_button(ui, tl!(label)).clicked()
+        } else {
+            ui.add(egui::Button::new(egui::RichText::new(tl!(label)).font(medium(13.5))).min_size(vec2(320.0, 34.0))).clicked()
+        };
+        if clicked {
             app.export_dialog(ext);
         }
         ui.add_space(4.0);
+    }
+}
+
+/// The export controls retain their own fill while still responding visibly to pointer input.
+fn featured_export_button(ui: &mut Ui, label: &str) -> egui::Response {
+    let t = crate::theme::Tokens::get(ui.ctx());
+    let (rect, response) = ui.allocate_exact_size(vec2(320.0, 34.0), egui::Sense::click());
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), label));
+    let pressed = response.is_pointer_button_down_on();
+    let hovered = response.hovered();
+    let fill = if pressed {
+        t.accent.linear_multiply(0.85)
+    } else if hovered {
+        t.accent.linear_multiply(1.15)
+    } else {
+        t.accent
+    };
+    let stroke = if hovered || pressed { egui::Stroke::new(1.5, t.on_accent) } else { egui::Stroke::NONE };
+    ui.painter().rect(rect, 4.0, fill, stroke, egui::StrokeKind::Inside);
+    ui.painter().text(rect.center(), egui::Align2::CENTER_CENTER, label, medium(13.5), t.on_accent);
+    response
+}
+
+#[cfg(test)]
+mod export_button_tests {
+    use super::*;
+
+    #[test]
+    fn featured_export_changes_color_on_hover_and_press() {
+        let ctx = egui::Context::default();
+        let frame = |events: Vec<egui::Event>| {
+            let mut rect = egui::Rect::NOTHING;
+            let output = ctx.run_ui(egui::RawInput { events, ..Default::default() }, |ui| {
+                rect = featured_export_button(ui, "Markdown").rect;
+            });
+            let color = output.shapes.iter().find_map(|shape| match &shape.shape {
+                egui::Shape::Rect(r) if r.rect == rect => Some(r.fill),
+                _ => None,
+            });
+            output.drop_without_applying_deltas();
+            (rect, color)
+        };
+        let (rect, normal) = frame(vec![]);
+        let pos = rect.center();
+        let (_, hover) = frame(vec![egui::Event::PointerMoved(pos)]);
+        let (_, pressed) =
+            frame(vec![egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, modifiers: Default::default() }]);
+        assert!(normal.is_some());
+        assert_ne!(normal, hover);
+        assert_ne!(hover, pressed);
     }
 }

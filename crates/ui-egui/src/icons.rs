@@ -888,6 +888,10 @@ fn paint_draw_to_review(pen: &Pen, name: &str) -> bool {
             pen.text(10.0, 10.0, 8.0, "ABC", a, true);
             pen.rect(2.5, 5.0, 17.5, 15.0, c);
         }
+        "md_preview" => {
+            pen.rect(2.5, 4.0, 17.5, 16.0, c);
+            pen.text(10.0, 10.0, 8.5, "MD", a, true);
+        }
         "next" | "previous" | "first" | "last" => {
             let pts: &[(f32, f32)] =
                 if name == "next" || name == "last" { &[(7.0, 4.0), (13.0, 10.0), (7.0, 16.0)] } else { &[(13.0, 4.0), (7.0, 10.0), (13.0, 16.0)] };
