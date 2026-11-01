@@ -59,6 +59,13 @@ Generated-in-code art is original and has no file to list: the UI icon set (`cra
 | `docs/images/dark.png` | WordCraft contributors | screenshot of WordCraft itself (sample document written for WordCraft, rendered by `ui_shot`) | MIT OR Apache-2.0 | Original; no Microsoft UI or assets |
 | `docs/images/backstage.png` | WordCraft contributors | screenshot of WordCraft itself (sample document written for WordCraft, rendered by `ui_shot`) | MIT OR Apache-2.0 | Original; no Microsoft UI or assets |
 | `docs/images/layout.png` | WordCraft contributors | screenshot of WordCraft itself (sample document written for WordCraft, rendered by `ui_shot`) | MIT OR Apache-2.0 | Original; no Microsoft UI or assets |
+| `assets/app-icon/mdword-icon.png` | MDword contributor; generated with Gemini and edited with Antigravity | MDword project icon supplied by its contributor | MIT OR Apache-2.0 | AI-generated source, adapted for MDword |
+| `assets/app-icon/mdword.ico` | MDword contributor; generated with Gemini and edited with Antigravity | MDword project icon supplied by its contributor | MIT OR Apache-2.0 | ICO version of the MDword icon |
+| `docs/brand/mdword-icon.png` | MDword contributor; generated with Gemini and edited with Antigravity | MDword project icon supplied by its contributor | MIT OR Apache-2.0 | Documentation version of the MDword icon |
+| `docs/images/export-markdown-txt.png` | MDword contributors | screenshot of MDword and its sample document | MIT OR Apache-2.0 | MDword interface screenshot |
+| `docs/images/markdown-preview-raw.png` | MDword contributors | screenshot of MDword and its sample document | MIT OR Apache-2.0 | MDword interface screenshot |
+| `docs/images/markdown-preview-rich.png` | MDword contributors | screenshot of MDword and its sample document | MIT OR Apache-2.0 | MDword interface screenshot |
+| `docs/images/ribbon-ai-convert.png` | MDword contributors | screenshot of MDword | MIT OR Apache-2.0 | MDword interface screenshot |
 | `docs/brand/LICENSE-brand.txt` | ArtCraft Team | ArtCraft brand kit (project owner) | ArtCraft trademark, `docs/brand/LICENSE-brand.txt` | Not open source; usable unmodified only |
 | `docs/brand/artcraft-logo-white.png` | ArtCraft Team | ArtCraft brand kit (project owner) | ArtCraft trademark, `docs/brand/LICENSE-brand.txt` | Not open source; usable unmodified only |
 | `docs/brand/artcraft-logo-white.svg` | ArtCraft Team | ArtCraft brand kit (project owner) | ArtCraft trademark, `docs/brand/LICENSE-brand.txt` | Not open source; usable unmodified only |

@@ -109,6 +109,31 @@ impl WordApp {
         r
     }
 
+    fn markdown_command(&mut self, id: &str) -> Option<Result<Value, String>> {
+        if id == "ui.exportText" {
+            self.export_dialog("txt");
+            return Some(Ok(json!({"pending": "export"})));
+        }
+        if !matches!(id, "ui.copyMarkdown" | "ui.markdownPreview") {
+            return None;
+        }
+        Some((|| {
+            let ctx = if id == "ui.copyMarkdown" { Some(self.ctx.clone().ok_or("clipboard is unavailable")?) } else { None };
+            let opts = wordcraft_engine::cmd::file::export_options(&self.session, &json!({}));
+            let bytes = wordcraft_engine::io::save_bytes_opts("document.md", &self.session.doc, &opts)?;
+            let text = String::from_utf8(bytes).map_err(|e| e.to_string())?;
+            if let Some(ctx) = ctx {
+                ctx.copy_text(text);
+                self.status(tl!("Copied Markdown to the clipboard."));
+                Ok(json!({"copied": true}))
+            } else {
+                let flow = wordcraft_formats::markdown::parse(&text);
+                self.dialog = Some(dialogs::Dialog::MarkdownPreview { tab: 0, text, flow });
+                Ok(json!({"pending": "markdownPreview"}))
+            }
+        })())
+    }
+
     /// Run a command for a script or an agent (control channel, MCP bridge): never asks first.
     /// UI-level commands (`ui.*`) are handled here, the rest by the engine.
     pub fn execute(&mut self, id: &str, params: Value) -> Result<Value, String> {
@@ -116,26 +141,8 @@ impl WordApp {
         if let Some(error) = self.document_required_error(id) {
             return Err(error);
         }
-        if id == "ui.copyMarkdown" {
-            let ctx = self.ctx.clone().ok_or("clipboard is unavailable")?;
-            let opts = wordcraft_engine::cmd::file::export_options(&self.session, &json!({}));
-            let bytes = wordcraft_engine::io::save_bytes_opts("document.md", &self.session.doc, &opts)?;
-            let markdown = String::from_utf8(bytes).map_err(|e| e.to_string())?;
-            ctx.copy_text(markdown);
-            self.status(tl!("Copied Markdown to the clipboard."));
-            return Ok(json!({"copied": true}));
-        }
-        if id == "ui.markdownPreview" {
-            let opts = wordcraft_engine::cmd::file::export_options(&self.session, &json!({}));
-            let bytes = wordcraft_engine::io::save_bytes_opts("document.md", &self.session.doc, &opts)?;
-            let text = String::from_utf8(bytes).map_err(|e| e.to_string())?;
-            let flow = wordcraft_formats::markdown::parse(&text);
-            self.dialog = Some(dialogs::Dialog::MarkdownPreview { tab: 0, text, flow });
-            return Ok(json!({"pending": "markdownPreview"}));
-        }
-        if id == "ui.exportText" {
-            self.export_dialog("txt");
-            return Ok(json!({"pending": "export"}));
+        if let Some(result) = self.markdown_command(id) {
+            return result;
         }
         if let Some(r) = self.ui_command(id, &params) {
             return r;
@@ -151,9 +158,7 @@ impl WordApp {
         }
         let ctx = self.ctx.clone();
         if let Some(r) = zotero::command(self, id, &params, ctx.as_ref()) {
-            if let Err(e) = &r {
-                self.status(e.clone());
-            }
+            r.as_ref().inspect_err(|e| self.status((*e).clone())).ok();
             return r;
         }
         // Web: saving and exporting become downloads.

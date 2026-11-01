@@ -137,7 +137,19 @@ pub fn show(app: &mut WordApp, ctx: &egui::Context) {
     let id = egui::Id::unique(("dialog", title));
     let window = crate::window_close::window(ctx, egui::Window::new(tl!(title)).id(id).collapsible(false).resizable(false));
     let shown = place_dialog(ctx, id, window).show(ctx, |ui| {
-        ui.set_min_width(if matches!(d, Dialog::MarkdownPreview { .. }) { 720.0 } else { 340.0 });
+        ui.set_min_width(if matches!(d, Dialog::MarkdownPreview { .. }) {
+            let screen_width = ctx.content_rect().width();
+            let page_width = app
+                .canvas
+                .page_rects
+                .iter()
+                .find(|page| app.canvas.canvas_rect.is_some_and(|canvas| page.intersects(canvas)))
+                .or_else(|| app.canvas.page_rects.first())
+                .map_or(720.0, |page| page.width());
+            (page_width - 24.0).max(400.0).min((screen_width - 32.0).max(100.0))
+        } else {
+            340.0
+        });
         close = body(app, ui, &mut d);
     });
     if let Some(shown) = &shown {

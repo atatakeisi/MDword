@@ -202,9 +202,7 @@ pub(super) fn shown_layout(app: &mut WordApp) -> std::sync::Arc<DocLayout> {
         {
             return l.clone();
         }
-        if let Some((doc, sel, l)) =
-            app.session.preview_ime_layout(&app.canvas.ime_preedit, app.canvas.ime_preedit_range.as_ref())
-        {
+        if let Some((doc, sel, l)) = app.session.preview_ime_layout(&app.canvas.ime_preedit, app.canvas.ime_preedit_range.as_ref()) {
             app.canvas.ime_preview_layout = Some((key, doc, sel, l.clone()));
             return l;
         }

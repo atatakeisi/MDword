@@ -19,6 +19,11 @@ pub fn restore(app: &mut WordApp, stored: Option<&str>) {
     {
         app.apply_prefs(ui);
     }
+    // Older web versions saved their stock name like any other preference. Replace only those
+    // defaults; an explicitly chosen name (including an empty one) stays the user's choice.
+    if matches!(app.session.author.as_str(), "WordCraft User" | "MDword User") {
+        app.session.author = "ユーザー".into();
+    }
 }
 
 /// Tracks what was last written, so the store is written only when a preference changed.
@@ -78,6 +83,22 @@ mod tests {
         WordApp::new(wordcraft_engine::Session::new(wordcraft_engine::sample::sample_document()), Services::default())
     }
 
+    #[test]
+    fn default_and_legacy_web_names_migrate_without_overwriting_chosen_names() {
+        let mut fresh = app();
+        restore(&mut fresh, None);
+        assert_eq!(fresh.session.author, "ユーザー");
+        assert_eq!(fresh.session.user_initials(), "ユ");
+        for (old, expected) in [("WordCraft User", "ユーザー"), ("MDword User", "ユーザー"), ("山田 太郎", "山田 太郎"), ("", "")] {
+            let mut original = app();
+            original.session.author = old.into();
+            let json = serde_json::to_string(&original.prefs()).unwrap();
+            let mut restored = app();
+            restore(&mut restored, Some(&json));
+            assert_eq!(restored.session.author, expected);
+        }
+    }
+
     /// A host page's name for the user signs the visit but isn't stored; a name the user then
     /// chooses is.
     #[test]
@@ -105,6 +126,7 @@ mod tests {
     #[test]
     fn dark_mode_survives_reload() {
         let mut first = app();
+        restore(&mut first, None);
         let mut sync = PrefsSync::new(None);
         let initial = sync.changed(&first);
         assert!(initial.is_some(), "first frame stores the preferences");

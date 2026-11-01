@@ -5,7 +5,7 @@ use wordcraft_formats::model::{FBlock, Flow, Inline, Kind, ListCounter, Para};
 
 use crate::WordApp;
 
-pub(crate) fn show(app: &mut WordApp, ui: &mut Ui, tab: &mut u8, text: &mut String, flow: &Flow) -> bool {
+pub(crate) fn show(app: &mut WordApp, ui: &mut Ui, tab: &mut u8, text: &str, flow: &Flow) -> bool {
     let t = crate::theme::Tokens::get(ui.ctx());
     ui.heading(tl!("Markdown preview for sharing"));
     ui.horizontal(|ui| {
@@ -43,10 +43,11 @@ pub(crate) fn show(app: &mut WordApp, ui: &mut Ui, tab: &mut u8, text: &mut Stri
         }
     });
     ui.add_space(4.0);
+    // Leave room for the title, tabs and actions on small screens while using the available height.
+    let height = (ui.ctx().content_rect().height() * 0.8 - 150.0).max(80.0);
     egui::Frame::group(ui.style()).show(ui, |ui| {
-        ui.set_min_height(360.0);
-        egui::ScrollArea::both().id_salt("markdown-preview-content").max_height(360.0).show(ui, |ui| {
-            ui.set_min_width(690.0);
+        ui.set_min_height(height);
+        egui::ScrollArea::both().id_salt("markdown-preview-content").max_height(height).show(ui, |ui| {
             if *tab == 0 {
                 let mut lists = ListCounter::default();
                 for (index, block) in flow.blocks.iter().enumerate() {
@@ -73,7 +74,7 @@ pub(crate) fn show(app: &mut WordApp, ui: &mut Ui, tab: &mut u8, text: &mut Stri
                     }
                 }
             } else {
-                let mut raw = text.as_str();
+                let mut raw = text;
                 ui.add(egui::TextEdit::multiline(&mut raw).font(egui::TextStyle::Monospace).desired_width(f32::INFINITY).interactive(false));
             }
         });
@@ -85,7 +86,7 @@ pub(crate) fn show(app: &mut WordApp, ui: &mut Ui, tab: &mut u8, text: &mut Stri
         let copy =
             crate::widgets::primary_button(ui, tl!("Copy to clipboard")).stroke(Stroke::new(1.5, border)).corner_radius(egui::CornerRadius::same(5));
         if ui.add(copy).clicked() {
-            ui.ctx().copy_text(text.clone());
+            ui.ctx().copy_text(text.to_owned());
             app.status(tl!("Copied Markdown to the clipboard."));
         }
         if ui.add(secondary_button(tl!("Save as Markdown (.md)"), t.dark)).clicked() {

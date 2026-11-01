@@ -20,10 +20,8 @@ fn japanese_templates_open_without_cjk_interface_fonts() {
     let ctx = egui::Context::default();
     for template in ["letter-ja", "resume-ja", "report-ja"] {
         app.run("file.new", json!({"template": template})).unwrap();
-        let input = egui::RawInput {
-            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1440.0, 900.0))),
-            ..Default::default()
-        };
+        let input =
+            egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1440.0, 900.0))), ..Default::default() };
         ctx.run_ui(input, |ui| {
             app.logic(ui.ctx());
             app.ui(ui);
