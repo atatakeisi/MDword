@@ -139,7 +139,14 @@ impl Session {
     /// Initials for new comments: the ones set in File › Options, else the user name's.
     pub fn user_initials(&self) -> String {
         let set = self.initials.trim();
-        if set.is_empty() { self.author.split_whitespace().filter_map(|w| w.chars().next()).collect() } else { set.to_string() }
+        if set.is_empty() {
+            if self.author == "MDword User" {
+                return "MD".into();
+            }
+            self.author.split_whitespace().filter_map(|w| w.chars().next()).collect()
+        } else {
+            set.to_string()
+        }
     }
 
     /// The document's file name and full path for fields (`FILENAME`) and layout context.

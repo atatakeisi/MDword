@@ -2,6 +2,20 @@
 //! its UTC time beside it when it knows it (`w16cex:dateUtc`, which WordCraft writes for the
 //! comments it stamps). The Comments pane and the balloons show it in local time, as Word does.
 
+/// Current local hour of the day (0..=23) in the user's local timezone.
+pub(crate) fn current_local_hour() -> u32 {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        use chrono::Timelike;
+        chrono::Local::now().hour()
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        let d = js_sys::Date::new_0();
+        d.get_hours()
+    }
+}
+
 /// Minutes to add to UTC for local time at Unix time `secs` (east of Greenwich is positive).
 fn offset_minutes(secs: i64) -> i32 {
     #[cfg(not(target_arch = "wasm32"))]
